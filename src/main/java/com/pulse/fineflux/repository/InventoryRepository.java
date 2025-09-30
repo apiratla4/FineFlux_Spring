@@ -2,11 +2,10 @@ package com.pulse.fineflux.repository;
 
 import com.pulse.fineflux.entity.Inventory;
 import org.springframework.data.mongodb.repository.MongoRepository;
-
 import java.util.List;
+import java.util.Optional;
 
 public interface InventoryRepository extends MongoRepository<Inventory, String> {
-    List<Inventory> findByProductId(String productId);
-
-    List<Inventory> findAllByProductId(String productId);
+    List<Inventory> findAllByOrganizationId(String organizationId);
+    Optional<Inventory> findByOrganizationIdAndProductId(String organizationId, String productId);
 }

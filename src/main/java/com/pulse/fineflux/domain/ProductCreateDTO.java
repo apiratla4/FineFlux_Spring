@@ -3,12 +3,9 @@ package com.pulse.fineflux.domain;
 import lombok.*;
 
 import java.math.BigDecimal;
-
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Data @NoArgsConstructor @AllArgsConstructor @Builder
 public class ProductCreateDTO {
+    private String organizationId;
     private String productName;
     private Double price;
     private Boolean status;

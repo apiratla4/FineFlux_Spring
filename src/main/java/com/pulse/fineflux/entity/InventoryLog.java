@@ -1,5 +1,4 @@
 package com.pulse.fineflux.entity;
-
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -7,24 +6,26 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import java.math.BigDecimal;
 import java.util.Date;
 
-@Document(collection = "inventory_log")
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
+@Document(collection = "inventory_logs")
 public class InventoryLog {
 
     @Id
-    private String id;
+    private String inventoryId; // MongoDB _id
 
-    private String productId;
+    private String organizationId; // 🔹 added for multi-tenancy
+
+    private String productId;      // reference to Product
     private String productName;
-    private BigDecimal quantity;
-    private BigDecimal previousLevel; // Add this
-    private BigDecimal newLevel;      // Add this
+    private BigDecimal totalCapacity;
+    private BigDecimal stockValue;
+    private Date lastUpdated;
+    private Integer employeeId;
     private BigDecimal currentLevel;
     private String metric;
-    private Integer employeeId;
-    private Date transactionDate;
-    private String action;
+    private Boolean status;
+    private BigDecimal tankCapacity;
 }

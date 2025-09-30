@@ -4,10 +4,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Data @NoArgsConstructor @AllArgsConstructor @Builder
 public class ProductUpdateDTO {
     private String productName;
     private Double price;

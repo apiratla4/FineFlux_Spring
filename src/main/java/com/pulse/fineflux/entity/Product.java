@@ -1,20 +1,28 @@
+
 package com.pulse.fineflux.entity;
+
+import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.math.BigDecimal;
 
-@Document(collection = "product")
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
+@Document(collection = "products")
 public class Product {
-
     @Id
-    private String productId; // primary key in MongoDB
+    private String id; // Mongo _id
+
+    @NotBlank
+    private String organizationId; // business key
+
+    @NotBlank
     private String productName;
+
     private Double price;
     private Boolean status;
     private BigDecimal tankCapacity;

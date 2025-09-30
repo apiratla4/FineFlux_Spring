@@ -5,12 +5,10 @@ import lombok.*;
 
 import java.math.BigDecimal;
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Data @NoArgsConstructor @AllArgsConstructor @Builder
 public class ProductResponseDTO {
-    private String productId;
+    private String id;
+    private String organizationId;
     private String productName;
     private Double price;
     private Boolean status;
@@ -20,4 +18,3 @@ public class ProductResponseDTO {
     private BigDecimal currentLevel;
     private String metric;
 }
-

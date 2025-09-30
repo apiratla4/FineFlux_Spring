@@ -7,9 +7,11 @@ import java.math.BigDecimal;
 
 @Data
 public class InventoryLogUpdateDTO {
-    private BigDecimal quantity;
+    private BigDecimal totalCapacity;
+    private BigDecimal stockValue;
+    private Integer employeeId;
     private BigDecimal currentLevel;
     private String metric;
-    private Integer employeeId;
-    private String action; // "UPDATE"
+    private Boolean status;
+    private BigDecimal tankCapacity;
 }

@@ -6,21 +6,17 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface InventoryLogRepository extends MongoRepository<InventoryLog, String> {
 
-    // Find all logs for a specific product ordered by transaction date descending
-    List<InventoryLog> findByProductIdOrderByTransactionDateDesc(String productId);
+    List<InventoryLog> findByOrganizationId(String organizationId);
 
-    // Search logs by product name (partial match)
-    List<InventoryLog> findByProductNameContainingIgnoreCase(String productName);
+    Optional<InventoryLog> findByOrganizationIdAndInventoryId(String organizationId, String inventoryId);
 
-    // Search logs by transaction date range
-    List<InventoryLog> findByTransactionDateBetween(Date from, Date to);
+    List<InventoryLog> findByOrganizationIdAndProductNameIgnoreCaseAndLastUpdatedBetween(
+            String organizationId, String productName, Date fromDate, Date toDate);
 
-    // Search logs by product name and transaction date range
-    List<InventoryLog> findByProductNameContainingIgnoreCaseAndTransactionDateBetween(
-            String productName, Date from, Date to
-    );
+
 }

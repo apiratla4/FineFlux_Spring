@@ -9,15 +9,16 @@ import java.util.Date;
 @Data
 @Builder
 public class InventoryLogResponseDTO {
-    private String id;
+    private String inventoryId;
+    private String organizationId;
     private String productId;
-    private String productName; // new field
-    private BigDecimal quantity;
-    private BigDecimal previousLevel;
-    private BigDecimal newLevel;
+    private String productName;
+    private BigDecimal totalCapacity;
+    private BigDecimal stockValue;
+    private Date lastUpdated;
+    private Integer employeeId;
     private BigDecimal currentLevel;
     private String metric;
-    private Integer employeeId;
-    private Date transactionDate;
-    private String action;
+    private Boolean status;
+    private BigDecimal tankCapacity;
 }
