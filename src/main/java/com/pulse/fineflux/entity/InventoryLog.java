@@ -18,12 +18,11 @@ public class InventoryLog {
     private String id;
 
     private String productId;
-
+    private String productName;
     private BigDecimal quantity;
     private BigDecimal previousLevel; // Add this
     private BigDecimal newLevel;      // Add this
     private BigDecimal currentLevel;
-
     private String metric;
     private Integer employeeId;
     private Date transactionDate;

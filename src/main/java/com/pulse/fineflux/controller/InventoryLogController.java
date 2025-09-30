@@ -1,15 +1,17 @@
 package com.pulse.fineflux.controller;
 
-import com.pulse.fineflux.domain.InventoryLogDto;
-import com.pulse.fineflux.entity.InventoryLog;
-import com.pulse.fineflux.repository.InventoryLogRepository;
+import com.pulse.fineflux.domain.InventoryLogCreateDTO;
+import com.pulse.fineflux.domain.InventoryLogResponseDTO;
+import com.pulse.fineflux.domain.InventoryLogUpdateDTO;
+import com.pulse.fineflux.service.InventoryLogService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Date;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/inventory-logs")
@@ -17,51 +19,87 @@ import java.util.stream.Collectors;
 @Slf4j
 public class InventoryLogController {
 
-    private final InventoryLogRepository inventoryLogRepository;
+    private final InventoryLogService inventoryLogService;
 
-    // Get all logs
-    @GetMapping
-    public ResponseEntity<List<InventoryLogDto>> getAllLogs() {
+    /**
+     * Create a new inventory log
+     */
+    @PostMapping
+    public ResponseEntity<InventoryLogResponseDTO> createLog(@RequestBody InventoryLogCreateDTO dto) {
+        log.info("Received request to create inventory log for productId={}", dto.getProductId());
         try {
-            List<InventoryLogDto> logs = inventoryLogRepository.findAll()
-                    .stream()
-                    .map(this::toDto)
-                    .collect(Collectors.toList());
-            return ResponseEntity.ok(logs);
+            InventoryLogResponseDTO response = inventoryLogService.createLog(dto);
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("Failed to fetch inventory logs: {}", e.getMessage(), e);
+            log.error("Error creating inventory log for productId={}: {}", dto.getProductId(), e.getMessage(), e);
             return ResponseEntity.status(500).build();
         }
     }
 
-    // Get logs for a specific product
-    @GetMapping("/product/{productId}")
-    public ResponseEntity<List<InventoryLogDto>> getLogsByProduct(@PathVariable String productId) {
+    /**
+     * Update an existing inventory log by ID
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<InventoryLogResponseDTO> updateLog(
+            @PathVariable String id,
+            @RequestBody InventoryLogUpdateDTO dto) {
+        log.info("Received request to update inventory log: id={}", id);
         try {
-            List<InventoryLogDto> logs = inventoryLogRepository.findByProductIdOrderByTransactionDateDesc(productId)
-                    .stream()
-                    .map(this::toDto)
-                    .collect(Collectors.toList());
-            return ResponseEntity.ok(logs);
+            InventoryLogResponseDTO response = inventoryLogService.updateLog(id, dto);
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("Failed to fetch inventory logs for product {}: {}", productId, e.getMessage(), e);
+            log.error("Error updating inventory log id={}: {}", id, e.getMessage(), e);
             return ResponseEntity.status(500).build();
         }
     }
 
-    // Helper method to map InventoryLog → InventoryLogDto
-    private InventoryLogDto toDto(InventoryLog log) {
-        InventoryLogDto dto = new InventoryLogDto();
-        dto.setId(log.getId());
-        dto.setProductId(log.getProductId());
-        dto.setQuantity(log.getQuantity());
-        dto.setPreviousLevel(log.getPreviousLevel());
-        dto.setNewLevel(log.getNewLevel());
-        dto.setCurrentLevel(log.getCurrentLevel());
-        dto.setMetric(log.getMetric());
-        dto.setEmployeeId(log.getEmployeeId());
-        dto.setTransactionDate(log.getTransactionDate());
-        dto.setAction(log.getAction());
-        return dto;
+    /**
+     * Get all inventory logs with optional filters for product name and date range
+     * Example: /api/inventory-logs/search?productName=Oil&fromDate=2025-09-01&toDate=2025-09-30
+     */
+    @GetMapping("/search")
+    public ResponseEntity<List<InventoryLogResponseDTO>> searchLogs(
+            @RequestParam(required = false) String productName,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date toDate) {
+        log.info("Received request to search inventory logs with productName={}, fromDate={}, toDate={}",
+                productName, fromDate, toDate);
+        try {
+            List<InventoryLogResponseDTO> logs = inventoryLogService.searchLogs(productName, fromDate, toDate);
+            return ResponseEntity.ok(logs);
+        } catch (Exception e) {
+            log.error("Error searching inventory logs: {}", e.getMessage(), e);
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+    /**
+     * Get a single inventory log by ID
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<InventoryLogResponseDTO> getLogById(@PathVariable String id) {
+        log.info("Received request to fetch inventory log: id={}", id);
+        try {
+            InventoryLogResponseDTO log = inventoryLogService.getLogById(id);
+            return ResponseEntity.ok(log);
+        } catch (Exception e) {
+            log.error("Error fetching inventory log id={}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+    /**
+     * Delete an inventory log by ID
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteLog(@PathVariable String id) {
+        log.info("Received request to delete inventory log: id={}", id);
+        try {
+            inventoryLogService.deleteLog(id);
+            return ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            log.error("Error deleting inventory log id={}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(500).build();
+        }
     }
 }

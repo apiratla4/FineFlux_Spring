@@ -1,17 +1,20 @@
 package com.pulse.fineflux.domain;
 
+import lombok.Builder;
 import lombok.Data;
 
 import java.math.BigDecimal;
 import java.util.Date;
 
 @Data
-public class InventoryLogDto {
+@Builder
+public class InventoryLogResponseDTO {
     private String id;
     private String productId;
+    private String productName; // new field
     private BigDecimal quantity;
-    private BigDecimal previousLevel; // Add this
-    private BigDecimal newLevel;      // Add this
+    private BigDecimal previousLevel;
+    private BigDecimal newLevel;
     private BigDecimal currentLevel;
     private String metric;
     private Integer employeeId;
