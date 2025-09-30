@@ -1,13 +1,10 @@
-// src/main/java/com/pulse/fineflux/entity/Customer.java
 package com.pulse.fineflux.entity;
-
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-// Lombok (optional, remove if not using Lombok)
 import lombok.Getter;
 import lombok.Setter;
 import lombok.NoArgsConstructor;
@@ -24,6 +21,10 @@ public class Customer {
 
     @Id
     private String id;
+
+    // Business key referencing Organization.organizationId (not Mongo _id)
+    @NotBlank
+    private String organizationId;
 
     @NotBlank
     private String customerName;

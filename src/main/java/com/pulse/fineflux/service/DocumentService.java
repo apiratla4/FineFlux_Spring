@@ -8,9 +8,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 public interface DocumentService {
-    DocumentResponse create(DocumentCreateRequest req);
-    DocumentResponse get(String id);
-    Page<DocumentResponse> list(Pageable pageable);
-    DocumentResponse update(String id, DocumentUpdateRequest req);
-    void delete(String id);
+    DocumentResponse create(String organizationId, DocumentCreateRequest req);
+    DocumentResponse get(String organizationId, String id);
+    Page<DocumentResponse> list(String organizationId, Pageable pageable);
+    DocumentResponse update(String organizationId, String id, DocumentUpdateRequest req);
+    void delete(String organizationId, String id);
 }

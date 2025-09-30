@@ -8,9 +8,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 public interface EmployeeService {
-    EmployeeResponse create(EmployeeCreateRequest req);
-    EmployeeResponse get(String id);
-    Page<EmployeeResponse> list(Pageable pageable);
-    EmployeeResponse update(String id, EmployeeUpdateRequest req);
-    void delete(String id);
+    EmployeeResponse create(String organizationId, EmployeeCreateRequest req);
+    EmployeeResponse get(String organizationId, String id);
+    Page<EmployeeResponse> list(String organizationId, Pageable pageable);
+    EmployeeResponse update(String organizationId, String id, EmployeeUpdateRequest req);
+    void delete(String organizationId, String id);
 }

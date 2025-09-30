@@ -1,10 +1,9 @@
-// src/main/java/com/pulse/fineflux/domain/customer/CustomerUpdateRequest.java
 package com.pulse.fineflux.domain;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public class CustomerUpdateRequest {
+    public String organizationId; // optional change of tenant association if allowed
     public String customerName;
     public String customerVehicleNum;
     public String empId;
