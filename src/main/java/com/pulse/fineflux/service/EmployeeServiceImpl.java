@@ -33,7 +33,6 @@ public class EmployeeServiceImpl implements EmployeeService {
     public EmployeeResponse create(String organizationId, EmployeeCreateRequest req) {
         log.info("Creating employee orgId={} empId={} username={}", organizationId, req.empId, req.username);
 
-        // Unique checks
         if (repo.existsByEmpId(req.empId)) {
             log.warn("empId already exists empId={} orgId={}", req.empId, organizationId);
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "empId already exists");
@@ -50,6 +49,10 @@ public class EmployeeServiceImpl implements EmployeeService {
         Employee e = new Employee();
         e.setOrganizationId(organizationId);
         e.setEmpId(req.empId);
+
+        // Normalize status to uppercase; default to ACTIVE if missing
+        e.setStatus(normalizeStatusOrDefault(req.status));
+
         e.setRole(req.role);
         e.setDepartment(req.department);
         e.setFirstName(req.firstName);
@@ -106,6 +109,11 @@ public class EmployeeServiceImpl implements EmployeeService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "empId already exists");
             }
             e.setEmpId(req.empId);
+        }
+
+        // Update status when provided
+        if (req.status != null && !req.status.isBlank()) {
+            e.setStatus(normalizeStatus(req.status));
         }
 
         if (req.role != null) e.setRole(req.role);
@@ -185,6 +193,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         r.id = e.getId();
         r.empId = e.getEmpId();
         r.organizationId = e.getOrganizationId();
+        r.status = e.getStatus();
         r.role = e.getRole();
         r.department = e.getDepartment();
         r.firstName = e.getFirstName();
@@ -217,5 +226,17 @@ public class EmployeeServiceImpl implements EmployeeService {
             r.emergencyContact = ec;
         }
         return r;
+    }
+
+    private String normalizeStatusOrDefault(String s) {
+        return (s == null || s.isBlank()) ? "ACTIVE" : normalizeStatus(s);
+    }
+
+    private String normalizeStatus(String s) {
+        String u = s.toUpperCase(java.util.Locale.ROOT);
+        if (!u.equals("ACTIVE") && !u.equals("INACTIVE")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "status must be ACTIVE or INACTIVE");
+        }
+        return u;
     }
 }

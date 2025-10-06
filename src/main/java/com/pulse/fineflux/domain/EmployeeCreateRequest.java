@@ -1,17 +1,20 @@
-// src/main/java/com/pulse/fineflux/domain/employee/EmployeeCreateRequest.java
+// src/main/java/com/pulse/fineflux/domain/EmployeeCreateRequest.java
 package com.pulse.fineflux.domain;
 
 import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.Pattern.Flag;
 
 public class EmployeeCreateRequest {
 
-    // Business key distinct from Mongo _id
     @NotBlank
     public String empId;
 
-    // Tenant/business key referencing Organization.organizationId
     @NotBlank
     public String organizationId;
+
+    // ACTIVE or INACTIVE (case-insensitive). If omitted, service defaults to ACTIVE.
+    @jakarta.validation.constraints.Pattern(regexp = "ACTIVE|INACTIVE", flags = {Flag.CASE_INSENSITIVE}, message = "status must be ACTIVE or INACTIVE")
+    public String status;
 
     @NotBlank public String role;
     @NotBlank public String department;
@@ -27,7 +30,6 @@ public class EmployeeCreateRequest {
     @NotBlank
     public String username;
 
-    // raw password from client; will be encoded server-side
     @NotBlank
     public String password;
 

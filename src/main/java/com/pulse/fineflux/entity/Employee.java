@@ -1,4 +1,6 @@
+// src/main/java/com/pulse/fineflux/entity/Employee.java
 package com.pulse.fineflux.entity;
+
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.data.annotation.CreatedDate;
@@ -12,21 +14,22 @@ import java.time.Instant;
 @Setter
 @Getter
 @Document(collection = "employees")
-// Example: make username unique per organization; comment out if you want global unique username
 @CompoundIndex(name = "org_username_unique_idx", def = "{'organizationId': 1, 'username': 1}", unique = true)
 public class Employee {
 
     @Id
-    private String id; // MongoDB _id
+    private String id;
 
-    // Business key referencing Organization.organizationId (not Mongo _id)
     @NotBlank
     private String organizationId;
 
-    // Business employee identifier distinct from Mongo _id (e.g., "EMP-0001")
     @NotBlank
     @Indexed(unique = true)
     private String empId;
+
+    // ACTIVE or INACTIVE (stored in uppercase)
+    @NotBlank
+    private String status;
 
     @NotBlank
     private String role;
@@ -45,13 +48,10 @@ public class Employee {
 
     @Email
     @NotBlank
-    @Indexed(unique = true) // global unique email across orgs; change to compound if needed per-org
+    @Indexed(unique = true)
     private String emailId;
 
     @NotBlank
-    // Remove the simple unique index because a compound unique (orgId+username) is defined above.
-    // If you want global unique username instead, delete the @CompoundIndex and uncomment the next line.
-    // @Indexed(unique = true)
     private String username;
 
     @NotBlank
@@ -61,9 +61,7 @@ public class Employee {
     private Instant joinedDate;
 
     private ShiftTiming shiftTiming;
-
     private Address address;
-
     private EmergencyContact emergencyContact;
 
     public Employee() {}
@@ -71,7 +69,6 @@ public class Employee {
     @Setter
     @Getter
     public static class ShiftTiming {
-        // 24h HH:mm (store as text or split into hour/minute)
         @Pattern(regexp = "^[0-2][0-9]:[0-5][0-9]$", message = "Invalid start time")
         private String start;
 

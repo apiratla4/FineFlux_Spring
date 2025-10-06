@@ -9,20 +9,16 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import java.util.Optional;
 
 public interface EmployeeRepository extends MongoRepository<Employee, String> {
-    // Global lookups (keep for login/admin tools)
     Optional<Employee> findByUsername(String username);
     Optional<Employee> findByEmailId(String emailId);
-    boolean existsByUsername(String username);              // use only if username is globally unique
-    boolean existsByEmailId(String emailId);                // email is globally unique
+    boolean existsByUsername(String username);
+    boolean existsByEmailId(String emailId);
 
-    // Business key checks
-    boolean existsByEmpId(String empId);                    // global unique empId (as per entity index)
+    boolean existsByEmpId(String empId);
 
-    // Org-scoped operations
+    // Org-scoped
     Page<Employee> findAllByOrganizationId(String organizationId, Pageable pageable);
     Optional<Employee> findByIdAndOrganizationId(String id, String organizationId);
     boolean existsByIdAndOrganizationId(String id, String organizationId);
-
-    // Per-org username uniqueness (use if username is unique per org)
     boolean existsByOrganizationIdAndUsername(String organizationId, String username);
 }
