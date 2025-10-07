@@ -18,5 +18,5 @@ public interface InventoryLogRepository extends MongoRepository<InventoryLog, St
     List<InventoryLog> findByOrganizationIdAndProductNameIgnoreCaseAndLastUpdatedBetween(
             String organizationId, String productName, Date fromDate, Date toDate);
 
-
+    Optional<InventoryLog> findTopByProductIdOrderByLastUpdatedDesc(String productId);
 }
