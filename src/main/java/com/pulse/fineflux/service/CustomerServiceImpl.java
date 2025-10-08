@@ -14,6 +14,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
+
 @Slf4j
 @Service
 public class CustomerServiceImpl implements CustomerService {
@@ -26,13 +28,16 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public CustomerResponse create(String organizationId, CustomerCreateRequest req) {
-        log.info("Creating customer orgId={} vehicle={}", organizationId, req.customerVehicleNum);
+        log.info("Creating customer orgId={} custId={} vehicle={}", organizationId, req.custId, req.customerVehicleNum);
+
         Customer c = new Customer();
         c.setOrganizationId(organizationId);
+        c.setCustId(req.custId);
         c.setCustomerName(req.customerName);
         c.setCustomerVehicleNum(req.customerVehicleNum);
         c.setEmpId(req.empId);
         c.setAmountBorrowed(req.amountBorrowed);
+        c.setTotalBorrowedAmount(req.amountBorrowed != null ? req.amountBorrowed : BigDecimal.ZERO);
         c.setBorrowDate(req.borrowDate);
         c.setDueDate(req.dueDate);
         c.setStatus(parseStatus(req.status));
@@ -40,8 +45,9 @@ public class CustomerServiceImpl implements CustomerService {
         c.setEmail(req.email);
         c.setNotes(req.notes);
         c.setAddress(mapAddress(req.address));
+
         c = repo.save(c);
-        log.info("Created customer id={} orgId={}", c.getId(), organizationId);
+        log.info("Created customer id={} orgId={} custId={}", c.getId(), organizationId, c.getCustId());
         return toResponse(c);
     }
 
@@ -57,10 +63,7 @@ public class CustomerServiceImpl implements CustomerService {
     public CustomerResponse get(String organizationId, String id) {
         log.debug("Fetching customer id={} orgId={}", id, organizationId);
         Customer c = repo.findByIdAndOrganizationId(id, organizationId)
-                .orElseThrow(() -> {
-                    log.warn("Customer not found id={} orgId={}", id, organizationId);
-                    return new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer not found");
-                });
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer not found"));
         return toResponse(c);
     }
 
@@ -74,20 +77,18 @@ public class CustomerServiceImpl implements CustomerService {
     public CustomerResponse update(String organizationId, String id, CustomerUpdateRequest req) {
         log.info("Updating customer id={} orgId={}", id, organizationId);
         Customer c = repo.findByIdAndOrganizationId(id, organizationId)
-                .orElseThrow(() -> {
-                    log.warn("Customer not found id={} orgId={}", id, organizationId);
-                    return new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer not found");
-                });
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer not found"));
 
         if (req.organizationId != null && !organizationId.equals(req.organizationId)) {
-            log.warn("Attempted organizationId change for customer id={} from={} to={}", id, organizationId, req.organizationId);
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "organizationId change is not allowed");
         }
 
+        if (req.custId != null) c.setCustId(req.custId);
         if (req.customerName != null) c.setCustomerName(req.customerName);
         if (req.customerVehicleNum != null) c.setCustomerVehicleNum(req.customerVehicleNum);
         if (req.empId != null) c.setEmpId(req.empId);
         if (req.amountBorrowed != null) c.setAmountBorrowed(req.amountBorrowed);
+        if (req.totalBorrowedAmount != null) c.setTotalBorrowedAmount(req.totalBorrowedAmount);
         if (req.borrowDate != null) c.setBorrowDate(req.borrowDate);
         if (req.dueDate != null) c.setDueDate(req.dueDate);
         if (req.status != null) c.setStatus(parseStatus(req.status));
@@ -104,12 +105,20 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     public void delete(String organizationId, String id) {
         log.info("Deleting customer id={} orgId={}", id, organizationId);
-        if (!repo.existsByIdAndOrganizationId(id, organizationId)) {
-            log.warn("Delete failed, customer not found id={} orgId={}", id, organizationId);
+        if (!repo.findByIdAndOrganizationId(id, organizationId).isPresent()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer not found");
         }
         repo.deleteById(id);
         log.info("Deleted customer id={} orgId={}", id, organizationId);
+    }
+
+    @Override
+    public CustomerResponse updateTotalBorrowedAmount(String organizationId, String custId, BigDecimal totalBorrowedAmount) {
+        Customer c = repo.findByCustIdAndOrganizationId(custId, organizationId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer not found"));
+        c.setTotalBorrowedAmount(totalBorrowedAmount);
+        c = repo.save(c);
+        return toResponse(c);
     }
 
     private Customer.BorrowStatus parseStatus(String s) {
@@ -136,17 +145,19 @@ public class CustomerServiceImpl implements CustomerService {
         CustomerResponse r = new CustomerResponse();
         r.id = c.getId();
         r.organizationId = c.getOrganizationId();
+        r.custId = c.getCustId();
         r.customerName = c.getCustomerName();
         r.customerVehicleNum = c.getCustomerVehicleNum();
         r.empId = c.getEmpId();
         r.amountBorrowed = c.getAmountBorrowed();
+        r.totalBorrowedAmount = c.getTotalBorrowedAmount();
         r.borrowDate = c.getBorrowDate();
         r.dueDate = c.getDueDate();
         r.status = c.getStatus() != null ? c.getStatus().name() : null;
         r.phoneNumber = c.getPhoneNumber();
         r.email = c.getEmail();
         r.notes = c.getNotes();
-        if (c.getAddress() != null) {
+        if (c.getAddress) {
             CustomerCreateRequest.AddressDTO a = new CustomerCreateRequest.AddressDTO();
             a.line1 = c.getAddress().getLine1();
             a.line2 = c.getAddress().getLine2();

@@ -11,6 +11,6 @@ import java.util.Optional;
 public interface CustomerRepository extends MongoRepository<Customer, String> {
     Page<Customer> findAllByOrganizationId(String organizationId, Pageable pageable);
     Optional<Customer> findByIdAndOrganizationId(String id, String organizationId);
-    boolean existsByIdAndOrganizationId(String id, String organizationId);
+    Optional<Customer> findByCustIdAndOrganizationId(String custId, String organizationId);
     long deleteByOrganizationId(String organizationId);
 }

@@ -1,4 +1,6 @@
+// src/main/java/com/pulse/fineflux/entity/Customer.java
 package com.pulse.fineflux.entity;
+
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import jakarta.validation.constraints.*;
@@ -19,12 +21,16 @@ import lombok.Builder;
 @Document(collection = "customers")
 public class Customer {
 
+    public boolean getAddress;
     @Id
     private String id;
 
-    // Business key referencing Organization.organizationId (not Mongo _id)
     @NotBlank
     private String organizationId;
+
+    // Business customer ID provided by UI (unique within org)
+    @NotBlank
+    private String custId;
 
     @NotBlank
     private String customerName;
@@ -32,13 +38,18 @@ public class Customer {
     @NotBlank
     private String customerVehicleNum;
 
-    // Employee id of the staff who handled this borrower
     @NotBlank
     private String empId;
 
+    // Current outstanding debt
     @NotNull
-    @DecimalMin(value = "0.0", inclusive = false)
+    @DecimalMin(value = "0.0")
     private BigDecimal amountBorrowed;
+
+    // Cumulative borrowed total for reporting/quick views
+    @NotNull
+    @DecimalMin(value = "0.0")
+    private BigDecimal totalBorrowedAmount;
 
     @PastOrPresent
     private LocalDate borrowDate;
