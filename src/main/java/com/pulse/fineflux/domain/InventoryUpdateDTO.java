@@ -16,4 +16,5 @@ public class InventoryUpdateDTO {
     private String metric;
     private Boolean status;
     private BigDecimal tankCapacity;
+    private String organizationId;
 }

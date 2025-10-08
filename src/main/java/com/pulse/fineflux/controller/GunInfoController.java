@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/{orgId}/guninfo")
+@RequestMapping("/api/organizations/{orgId}/guninfo")
 @RequiredArgsConstructor
 @Slf4j
 public class GunInfoController {

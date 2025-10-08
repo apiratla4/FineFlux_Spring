@@ -10,7 +10,7 @@ import java.util.List;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/{orgId}/collections")
+@RequestMapping("/api/organizations/{orgId}/collections")
 @RequiredArgsConstructor
 public class CollectionsController {
 

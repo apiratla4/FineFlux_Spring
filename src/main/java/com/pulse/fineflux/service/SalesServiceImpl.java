@@ -1,17 +1,16 @@
 package com.pulse.fineflux.service;
 
-
 import com.pulse.fineflux.domain.*;
 import com.pulse.fineflux.entity.*;
 import com.pulse.fineflux.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
-
 
 @Slf4j
 @Service
@@ -22,13 +21,15 @@ public class SalesServiceImpl implements SalesService {
     private final GunInfoRepository gunInfoRepository;
     private final ProductRepository productRepository;
     private final EmployeeRepository employeeRepository;
+    private final ProfitLossService profitLossService;
+
 
     @Override
     public SalesResponseDTO createSale(SalesCreateDTO dto) {
         try {
             log.info("Creating new Sale for orgId={}", dto.getOrganizationId());
 
-            // Validate employee exists
+            // ✅ Validate employee
             if (dto.getEmployeeId() == null || dto.getEmployeeId().isBlank()) {
                 throw new RuntimeException("Employee ID cannot be null or empty");
             }
@@ -40,14 +41,20 @@ public class SalesServiceImpl implements SalesService {
                     ? dto.getDateTime()
                     : LocalDateTime.now();
 
-            // Fetch latest gun and product info
+            // ✅ Fetch Product and Gun Info
             String gunName = gunInfoRepository.findByOrganizationId(dto.getOrganizationId())
-                    .stream().findFirst().map(GunInfo::getGuns).orElse("N/A");
+                    .stream()
+                    .findFirst()
+                    .map(GunInfo::getGuns)
+                    .orElse("N/A");
 
             String productName = productRepository.findByOrganizationId(dto.getOrganizationId())
-                    .stream().findFirst().map(Product::getProductName).orElse("N/A");
+                    .stream()
+                    .findFirst()
+                    .map(Product::getProductName)
+                    .orElse("N/A");
 
-            // Calculate opening stock
+            // ✅ Calculate Opening Stock
             double opening = dto.getOpeningStock() == 0f
                     ? getLastClosing(productName, gunName)
                     : dto.getOpeningStock();
@@ -58,7 +65,7 @@ public class SalesServiceImpl implements SalesService {
             BigDecimal saleVolume = BigDecimal.valueOf(closing - opening - testing);
             float amount = saleVolume.multiply(BigDecimal.valueOf(dto.getPrice())).floatValue();
 
-            // Save sale
+            // ✅ Save Sale Record
             Sales sale = Sales.builder()
                     .organizationId(dto.getOrganizationId())
                     .dateTime(entryDateTime)
@@ -74,13 +81,36 @@ public class SalesServiceImpl implements SalesService {
                     .build();
 
             Sales saved = salesRepository.save(sale);
-            log.info("Saved sale: {}", saved);
 
+            // Trigger Profit/Loss recalculation automatically with orgId
+            profitLossService.calculateAndSaveProfitLoss(dto.getOrganizationId());
+            log.info("✅ Sale created successfully: {}", saved);
+
+            // ✅ Update Product.currentLevel Automatically
+            productRepository.findByOrganizationId(dto.getOrganizationId()).stream()
+                    .filter(p -> p.getProductName().equalsIgnoreCase(productName))
+                    .findFirst()
+                    .ifPresent(product -> {
+                        BigDecimal current = product.getCurrentLevel() != null ? product.getCurrentLevel() : BigDecimal.ZERO;
+                        BigDecimal decreaseBy = BigDecimal.valueOf(saved.getSalesInLiters());
+                        BigDecimal updatedLevel = current.subtract(decreaseBy);
+
+                        // Prevent going below zero
+                        if (updatedLevel.compareTo(BigDecimal.ZERO) < 0) {
+                            updatedLevel = BigDecimal.ZERO;
+                        }
+
+                        product.setCurrentLevel(updatedLevel);
+                        productRepository.save(product);
+
+                        log.info("🛢️ Product '{}' stock updated: {} → {} (decreased by {})",
+                                productName, current, updatedLevel, decreaseBy);
+                    });
 
             return toResponse(saved);
 
         } catch (Exception e) {
-            log.error("Failed to create sale for orgId={}", dto.getOrganizationId(), e);
+            log.error("❌ Error creating sale for orgId={}", dto.getOrganizationId(), e);
             throw new RuntimeException("Error creating sale: " + e.getMessage());
         }
     }
@@ -115,6 +145,7 @@ public class SalesServiceImpl implements SalesService {
             sale.setSalesInRupees(dto.getSalesInRupees());
 
             Sales updated = salesRepository.save(sale);
+
             return toResponse(updated);
 
         } catch (Exception e) {
@@ -156,7 +187,7 @@ public class SalesServiceImpl implements SalesService {
                 .dateTime(sale.getDateTime())
                 .productName(sale.getProductName())
                 .guns(sale.getGuns())
-                .employeeId(sale.getEmployeeId())  // validated/fetched from Employee table
+                .employeeId(sale.getEmployeeId())
                 .openingStock(sale.getOpeningStock())
                 .closingStock(sale.getClosingStock())
                 .testingTotal(sale.getTestingTotal())

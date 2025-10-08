@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Service
@@ -72,16 +73,19 @@ public class ProductServiceImpl implements ProductService {
         try {
             log.info("Creating product for orgId={} productName={}", dto.getOrganizationId(), dto.getProductName());
 
+            // Set default status if null
+            Boolean status = dto.getStatus() != null ? dto.getStatus() : Boolean.TRUE;
+
             // Build the entity
             Product product = Product.builder()
                     .organizationId(dto.getOrganizationId())
                     .productName(dto.getProductName())
                     .price(dto.getPrice())
-                    .status(dto.getStatus())
+                    .status(status)
                     .tankCapacity(dto.getTankCapacity())
                     .description(dto.getDescription())
                     .supplier(dto.getSupplier())
-                    .currentLevel(dto.getCurrentLevel())
+                    .currentLevel(dto.getCurrentLevel() != null ? dto.getCurrentLevel() : BigDecimal.ZERO)
                     .metric(dto.getMetric())
                     .build();
 
@@ -95,10 +99,6 @@ public class ProductServiceImpl implements ProductService {
         }
     }
 
-    /**
-     * Update an existing product.
-     * @return ProductResponseDTO of the updated product.
-     */
     @Override
     public ProductResponseDTO updateProduct(String orgId, String productId, ProductUpdateDTO dto) {
         try {
@@ -113,7 +113,8 @@ public class ProductServiceImpl implements ProductService {
             // Update fields
             product.setProductName(dto.getProductName());
             product.setPrice(dto.getPrice());
-            product.setStatus(dto.getStatus());
+            // Default to current status if null
+            product.setStatus(dto.getStatus() != null ? dto.getStatus() : product.getStatus());
             product.setTankCapacity(dto.getTankCapacity());
             product.setDescription(dto.getDescription());
             product.setSupplier(dto.getSupplier());

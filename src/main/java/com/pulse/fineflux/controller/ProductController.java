@@ -15,7 +15,7 @@ import java.util.List;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/{orgId}/products")
+@RequestMapping("/api/organizations/{orgId}/products")
 @RequiredArgsConstructor
 public class ProductController {
 

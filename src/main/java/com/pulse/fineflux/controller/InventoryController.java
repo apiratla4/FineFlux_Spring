@@ -10,7 +10,7 @@ import java.util.List;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/{orgId}/inventories")
+@RequestMapping("/api/organizations/{orgId}/inventories")
 @RequiredArgsConstructor
 public class InventoryController {
 
