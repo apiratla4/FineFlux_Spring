@@ -7,10 +7,16 @@ import com.pulse.fineflux.domain.CustomerUpdateRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.math.BigDecimal;
+
 public interface CustomerService {
-    CustomerResponse create(CustomerCreateRequest req);
-    CustomerResponse get(String id);
-    Page<CustomerResponse> list(Pageable pageable);
-    CustomerResponse update(String id, CustomerUpdateRequest req);
-    void delete(String id);
+    CustomerResponse create(String organizationId, CustomerCreateRequest req);
+    CustomerResponse get(String organizationId, String id);
+    Page<CustomerResponse> list(String organizationId, Pageable pageable);
+    CustomerResponse update(String organizationId, String id, CustomerUpdateRequest req);
+    void delete(String organizationId, String id);
+    long deleteAllForOrganization(String organizationId);
+
+    // sync helper: update only totalBorrowedAmount by business custId
+    CustomerResponse updateTotalBorrowedAmount(String organizationId, String custId, BigDecimal totalBorrowedAmount);
 }

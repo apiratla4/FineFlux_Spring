@@ -1,4 +1,4 @@
-// src/main/java/com/pulse/fineflux/domain/auth/LoginRequest.java
+// src/main/java/com/pulse/fineflux/domain/LoginRequest.java
 package com.pulse.fineflux.domain;
 
 import jakarta.validation.constraints.NotBlank;

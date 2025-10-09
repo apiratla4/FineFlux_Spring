@@ -1,10 +1,14 @@
-// src/main/java/com/pulse/fineflux/domain/employee/EmployeeResponse.java
+// src/main/java/com/pulse/fineflux/domain/EmployeeResponse.java
 package com.pulse.fineflux.domain;
 
 import java.time.Instant;
 
 public class EmployeeResponse {
     public String id;
+    public String empId;
+    public String organizationId;
+    public String status;
+
     public String role;
     public String department;
     public String firstName;
@@ -12,6 +16,7 @@ public class EmployeeResponse {
     public String phoneNumber;
     public String emailId;
     public String username;
+
     public Instant joinedDate;
     public EmployeeCreateRequest.ShiftTimingDTO shiftTiming;
     public EmployeeCreateRequest.AddressDTO address;

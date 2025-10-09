@@ -1,6 +1,4 @@
-// src/main/java/com/pulse/fineflux/entity/DocumentRecord.java
 package com.pulse.fineflux.entity;
-
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import jakarta.validation.constraints.*;
@@ -23,6 +21,9 @@ public class DocumentRecord {
     private String id;
 
     @NotBlank
+    private String organizationId;
+
+    @NotBlank
     private String documentType;
 
     @NotBlank
@@ -34,7 +35,6 @@ public class DocumentRecord {
     @FutureOrPresent
     private LocalDate expiryDate;
 
-    // number of days or months; pick convention (here: days)
     @PositiveOrZero
     private Integer renewalPeriodDays;
 

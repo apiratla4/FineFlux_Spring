@@ -7,7 +7,6 @@ import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-// Lombok (optional, remove if not using Lombok)
 import lombok.Getter;
 import lombok.Setter;
 import lombok.NoArgsConstructor;
@@ -22,8 +21,16 @@ import lombok.Builder;
 @Document(collection = "customers")
 public class Customer {
 
+    public boolean getAddress;
     @Id
     private String id;
+
+    @NotBlank
+    private String organizationId;
+
+    // Business customer ID provided by UI (unique within org)
+    @NotBlank
+    private String custId;
 
     @NotBlank
     private String customerName;
@@ -31,13 +38,18 @@ public class Customer {
     @NotBlank
     private String customerVehicleNum;
 
-    // Employee id of the staff who handled this borrower
     @NotBlank
     private String empId;
 
+    // Current outstanding debt
     @NotNull
-    @DecimalMin(value = "0.0", inclusive = false)
+    @DecimalMin(value = "0.0")
     private BigDecimal amountBorrowed;
+
+    // Cumulative borrowed total for reporting/quick views
+    @NotNull
+    @DecimalMin(value = "0.0")
+    private BigDecimal totalBorrowedAmount;
 
     @PastOrPresent
     private LocalDate borrowDate;

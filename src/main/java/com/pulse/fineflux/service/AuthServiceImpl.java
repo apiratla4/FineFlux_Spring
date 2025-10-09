@@ -24,6 +24,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginResponse authenticate(LoginRequest req) {
+        // Look up by username only; orgId will be taken from the employee record
         Employee e = repo.findByUsername(req.username)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials"));
 
@@ -31,6 +32,13 @@ public class AuthServiceImpl implements AuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }
 
-        return new LoginResponse(e.getId(), e.getUsername(), e.getRole());
+        // Include organizationId and empId from DB in the response
+        return new LoginResponse(
+                e.getId(),
+                e.getUsername(),
+                e.getRole(),
+                e.getOrganizationId(),
+                e.getEmpId()
+        );
     }
 }
