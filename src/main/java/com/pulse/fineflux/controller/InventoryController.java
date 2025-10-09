@@ -1,11 +1,14 @@
 package com.pulse.fineflux.controller;
 
-import com.pulse.fineflux.domain.*;
+import com.pulse.fineflux.domain.InventoryCreateDTO;
+import com.pulse.fineflux.domain.InventoryResponseDTO;
+import com.pulse.fineflux.domain.InventoryUpdateDTO;
 import com.pulse.fineflux.service.InventoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
 
 @Slf4j
@@ -17,7 +20,7 @@ public class InventoryController {
     private final InventoryService inventoryService;
 
     /**
-     * Create a new inventory entry.
+     * Create a new inventory entry (auto logs and syncs product currentLevel).
      */
     @PostMapping
     public ResponseEntity<InventoryResponseDTO> create(
@@ -25,7 +28,7 @@ public class InventoryController {
             @RequestBody InventoryCreateDTO dto) {
         try {
             dto.setOrganizationId(orgId);
-            log.info("Creating inventory for orgId={}, productName={}", orgId, dto.getProductName());
+            log.info("Creating inventory for orgId={}, productId={}", orgId, dto.getProductId());
 
             InventoryResponseDTO response = inventoryService.createInventory(dto);
 
@@ -38,7 +41,7 @@ public class InventoryController {
     }
 
     /**
-     * Update existing inventory by product ID.
+     * Update existing inventory by product ID (auto logs and syncs product currentLevel).
      */
     @PutMapping("/{productId}")
     public ResponseEntity<List<InventoryResponseDTO>> update(

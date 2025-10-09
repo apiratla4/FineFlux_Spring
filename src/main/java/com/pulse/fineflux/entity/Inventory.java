@@ -23,10 +23,10 @@ public class Inventory {
     private BigDecimal totalCapacity;
     private BigDecimal stockValue;
     private Date lastUpdated;
-    private Integer employeeId;
     private BigDecimal currentLevel;
     private String metric;
     private Boolean status;
     private BigDecimal tankCapacity;
+    private String empId;
 
 }

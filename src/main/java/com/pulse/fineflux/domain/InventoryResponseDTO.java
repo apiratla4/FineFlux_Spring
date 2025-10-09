@@ -16,7 +16,7 @@ public class InventoryResponseDTO {
     private BigDecimal totalCapacity;
     private BigDecimal stockValue;
     private Date lastUpdated;
-    private Integer employeeId;
+    private String empId;
     private BigDecimal currentLevel;
     private String metric;
     private Boolean status;

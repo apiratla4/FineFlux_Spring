@@ -19,4 +19,5 @@ public class ProductResponseDTO {
     private BigDecimal currentLevel;
     private String metric;
     private Date lastUpdated;
+    private String empId;
 }

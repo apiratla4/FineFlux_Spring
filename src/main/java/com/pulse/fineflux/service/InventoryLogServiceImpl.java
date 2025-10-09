@@ -38,25 +38,23 @@ public class InventoryLogServiceImpl implements InventoryLogService {
     }
 
     /**
-     * Fetch a single inventory log by ID
+     * Fetch a single inventory log by inventoryId for a given organization
      */
     @Override
-    public InventoryLogResponseDTO getLogById(String orgId, String id) {
+    public InventoryLogResponseDTO getLogById(String orgId, String inventoryId) {
         try {
-            log.info("Fetching inventory log with id={} for orgId={}", id, orgId);
-            InventoryLogResponseDTO logEntry = inventoryLogRepository.findByOrganizationIdAndInventoryId(orgId, id)
+            log.info("Fetching inventory log with inventoryId={} for orgId={}", inventoryId, orgId);
+            return inventoryLogRepository.findByOrganizationIdAndInventoryId(orgId, inventoryId)
                     .map(this::toDto)
                     .orElseThrow(() -> new RuntimeException("Log not found"));
-            log.debug("Fetched inventory log id={} successfully", id);
-            return logEntry;
         } catch (Exception e) {
-            log.error("Error fetching inventory log id={} for orgId={}", id, orgId, e);
+            log.error("Error fetching inventory log inventoryId={} for orgId={}", inventoryId, orgId, e);
             throw e;
         }
     }
 
     /**
-     * Search inventory logs with optional filters
+     * Search inventory logs with optional filters for product name and date range
      */
     @Override
     public List<InventoryLogResponseDTO> searchLogs(String orgId, String productName, Date fromDate, Date toDate) {
@@ -73,7 +71,8 @@ public class InventoryLogServiceImpl implements InventoryLogService {
             }
 
             List<InventoryLogResponseDTO> logs = inventoryLogRepository
-                    .findByOrganizationIdAndProductNameIgnoreCaseAndLastUpdatedBetween(orgId, productName, fromDate, toDate)
+                    .findByOrganizationIdAndProductNameIgnoreCaseAndLastUpdatedBetween(
+                            orgId, productName, fromDate, toDate)
                     .stream()
                     .map(this::toDto)
                     .collect(Collectors.toList());
@@ -99,7 +98,7 @@ public class InventoryLogServiceImpl implements InventoryLogService {
                 .totalCapacity(log.getTotalCapacity())
                 .stockValue(log.getStockValue())
                 .lastUpdated(log.getLastUpdated())
-                .employeeId(log.getEmployeeId())
+                .empId(log.getEmpId())
                 .currentLevel(log.getCurrentLevel())
                 .metric(log.getMetric())
                 .status(log.getStatus())

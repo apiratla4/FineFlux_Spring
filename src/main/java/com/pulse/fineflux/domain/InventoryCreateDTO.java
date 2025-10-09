@@ -14,12 +14,11 @@ public class InventoryCreateDTO {
     private String organizationId;
     @NotBlank
     private String productId;
-
+    private String empId;
     private String productName;
     private BigDecimal totalCapacity;
     private BigDecimal stockValue;
     private BigDecimal currentLevel;
-    private Integer employeeId;
     private String metric;
     private Boolean status;
     private BigDecimal tankCapacity;
