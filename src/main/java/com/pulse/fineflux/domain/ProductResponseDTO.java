@@ -4,6 +4,7 @@ package com.pulse.fineflux.domain;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.util.Date;
 
 @Data @NoArgsConstructor @AllArgsConstructor @Builder
 public class ProductResponseDTO {
@@ -17,4 +18,5 @@ public class ProductResponseDTO {
     private String supplier;
     private BigDecimal currentLevel;
     private String metric;
+    private Date lastUpdated;
 }

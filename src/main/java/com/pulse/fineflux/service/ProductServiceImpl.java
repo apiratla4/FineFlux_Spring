@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.Date;
 import java.util.List;
 
 @Service
@@ -87,6 +88,7 @@ public class ProductServiceImpl implements ProductService {
                     .supplier(dto.getSupplier())
                     .currentLevel(dto.getCurrentLevel() != null ? dto.getCurrentLevel() : BigDecimal.ZERO)
                     .metric(dto.getMetric())
+                    .lastUpdated(new Date()) // set current date/time
                     .build();
 
             Product savedProduct = productRepository.save(product);
@@ -113,13 +115,13 @@ public class ProductServiceImpl implements ProductService {
             // Update fields
             product.setProductName(dto.getProductName());
             product.setPrice(dto.getPrice());
-            // Default to current status if null
             product.setStatus(dto.getStatus() != null ? dto.getStatus() : product.getStatus());
             product.setTankCapacity(dto.getTankCapacity());
             product.setDescription(dto.getDescription());
             product.setSupplier(dto.getSupplier());
             product.setCurrentLevel(dto.getCurrentLevel());
             product.setMetric(dto.getMetric());
+            product.setLastUpdated(new Date()); // set current date/time on update
 
             Product updatedProduct = productRepository.save(product);
             log.debug("Product updated successfully productId={} orgId={}", updatedProduct.getId(), orgId);
@@ -132,6 +134,7 @@ public class ProductServiceImpl implements ProductService {
             throw new RuntimeException("Failed to update product", e);
         }
     }
+
 
     /**
      * Delete a product by ID for a specific organization.
