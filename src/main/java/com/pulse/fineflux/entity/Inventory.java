@@ -28,4 +28,5 @@ public class Inventory {
     private String metric;
     private Boolean status;
     private BigDecimal tankCapacity;
+
 }
