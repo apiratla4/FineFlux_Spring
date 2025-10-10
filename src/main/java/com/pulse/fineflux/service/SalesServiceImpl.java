@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -23,23 +24,22 @@ public class SalesServiceImpl implements SalesService {
     private final ProfitLossService profitLossService;
     private final InventoryRepository inventoryRepository;
     private final InventoryLogRepository inventoryLogRepository;
+    private final CollectionsRepository collectionsRepository;
+    private final SaleHistoryRepository saleHistoryRepository;
 
     @Override
     public SalesResponseDTO createSale(SalesCreateDTO dto) {
         try {
             LocalDateTime entryDateTime = dto.getDateTime() != null ? dto.getDateTime() : LocalDateTime.now();
 
-            // Lookup product by name and org
             Product product = productRepository.findByOrganizationId(dto.getOrganizationId()).stream()
                     .filter(p -> p.getProductName().trim().equalsIgnoreCase(dto.getProductName().trim()))
                     .findFirst()
                     .orElseThrow(() -> new RuntimeException("Product not found: " + dto.getProductName()));
 
-            // Lookup gun info (optional only for generic sales)
             String gunName = gunInfoRepository.findByOrganizationId(dto.getOrganizationId())
                     .stream().findFirst().map(GunInfo::getGuns).orElse("N/A");
 
-            // Calculate true sale volume
             double opening = dto.getOpeningStock() == 0f
                     ? getLastClosing(product.getProductName(), gunName)
                     : dto.getOpeningStock();
@@ -49,7 +49,6 @@ public class SalesServiceImpl implements SalesService {
             BigDecimal saleVolume = BigDecimal.valueOf(closing - opening - testing);
             float amount = saleVolume.multiply(BigDecimal.valueOf(dto.getPrice())).floatValue();
 
-            // Save sale record
             Sales sale = Sales.builder()
                     .organizationId(dto.getOrganizationId())
                     .dateTime(entryDateTime)
@@ -66,11 +65,43 @@ public class SalesServiceImpl implements SalesService {
 
             Sales saved = salesRepository.save(sale);
 
-            // Profit/loss calculation triggered for org
+            // Find matching collection for this emp/org/day
+            LocalDateTime dayStart = entryDateTime.toLocalDate().atStartOfDay();
+            LocalDateTime dayEnd = dayStart.plusDays(1);
+            Collections bestCollection = collectionsRepository
+                    .findByOrganizationIdAndEmpIdAndDateTimeBetween(
+                            dto.getOrganizationId(), dto.getEmpId(), dayStart, dayEnd
+                    )
+                    .stream()
+                    .max(Comparator.comparing(Collections::getDateTime)) // latest in the day
+                    .orElse(null);
+
+            SaleHistory history = SaleHistory.builder()
+                    .organizationId(saved.getOrganizationId())
+                    .dateTime(saved.getDateTime())
+                    .productName(saved.getProductName())
+                    .guns(saved.getGuns())
+                    .empId(saved.getEmpId())
+                    .openingStock(saved.getOpeningStock())
+                    .closingStock(saved.getClosingStock())
+                    .testingTotal(saved.getTestingTotal())
+                    .salesInLiters(saved.getSalesInLiters())
+                    .price(saved.getPrice())
+                    .salesInRupees(saved.getSalesInRupees())
+                    .cashReceived(bestCollection != null ? bestCollection.getCashReceived() : 0)
+                    .phonePay(bestCollection != null ? bestCollection.getPhonePay() : 0)
+                    .creditCard(bestCollection != null ? bestCollection.getCreditCard() : 0)
+                    .shortCollections(bestCollection != null ? bestCollection.getShortCollections() : 0)
+                    .receivedTotal(bestCollection != null ? bestCollection.getReceivedTotal() : 0)
+                    .build();
+            saleHistoryRepository.save(history);
+
+            log.info("SaleHistory record created for empId={} and orgId={}", dto.getEmpId(), dto.getOrganizationId());
+
             profitLossService.calculateAndSaveProfitLoss(dto.getOrganizationId());
             log.info("Sale created successfully: {}", saved);
 
-            // 1. PRODUCT: Decrease stock
+            // PRODUCT: Decrease stock
             BigDecimal currProduct = product.getCurrentLevel() != null ? product.getCurrentLevel() : BigDecimal.ZERO;
             BigDecimal decreaseBy = BigDecimal.valueOf(saved.getSalesInLiters());
             BigDecimal updatedProductLevel = currProduct.subtract(decreaseBy);
@@ -80,8 +111,10 @@ public class SalesServiceImpl implements SalesService {
             log.info("Product '{}' currentLevel updated: {} → {} (decreased by {})",
                     product.getProductName(), currProduct, updatedProductLevel, decreaseBy);
 
-            // 2. INVENTORY and 3. HISTORY LOG
-            inventoryRepository.findByOrganizationIdAndProductId(dto.getOrganizationId(), product.getId())
+            // INVENTORY and HISTORY LOG
+            List<Inventory> inventories = inventoryRepository.findAllByOrganizationIdAndProductId(dto.getOrganizationId(), product.getId());
+            inventories.stream()
+                    .max(Comparator.comparing(Inventory::getLastUpdated))
                     .ifPresent(inventory -> {
                         BigDecimal currInv = inventory.getCurrentLevel() != null ? inventory.getCurrentLevel() : BigDecimal.ZERO;
                         BigDecimal updatedInv = currInv.subtract(decreaseBy);
@@ -90,7 +123,6 @@ public class SalesServiceImpl implements SalesService {
                         inventory.setCurrentLevel(updatedInv);
                         inventoryRepository.save(inventory);
 
-                        // Insert InventoryLog as history
                         InventoryLog logEntry = InventoryLog.builder()
                                 .inventoryId(inventory.getInventoryId())
                                 .organizationId(inventory.getOrganizationId())
@@ -108,7 +140,7 @@ public class SalesServiceImpl implements SalesService {
 
                         inventoryLogRepository.save(logEntry);
 
-                        log.info("Inventory '{}' currentLevel updated: {} → {} (decreased by {})",
+                        log.info("Inventory '{}' currentLevel updated & logged: {} → {} (decreased by {})",
                                 inventory.getProductName(), currInv, updatedInv, decreaseBy);
                     });
 

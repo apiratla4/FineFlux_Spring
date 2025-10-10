@@ -20,7 +20,7 @@ public class Sales {
     private LocalDateTime dateTime;
     private String productName;   // fetched from Product
     private String guns;          // fetched from GunInfo
-    private String empId;         // SINGLE FIELD FOR EMPLOYEE ID (used everywhere)
+    private String empId;
     private double openingStock;
     private double closingStock;
     private double testingTotal;

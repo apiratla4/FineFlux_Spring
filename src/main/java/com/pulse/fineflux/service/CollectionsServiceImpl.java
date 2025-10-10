@@ -36,7 +36,7 @@ public class CollectionsServiceImpl implements CollectionsService {
         double received = dto.getCashReceived() + dto.getPhonePay() + dto.getCreditCard();
         entity.setExpectedTotal(expected);
         entity.setReceivedTotal(received);
-        entity.setDifference(expected - received);
+
 
         Collections saved = collectionsRepository.save(entity);
         return convertToResponse(saved);
@@ -52,7 +52,6 @@ public class CollectionsServiceImpl implements CollectionsService {
         double expected = existing.getExpectedTotal(); // Keep existing expected or recompute
         double received = dto.getCashReceived() + dto.getPhonePay() + dto.getCreditCard();
         existing.setReceivedTotal(received);
-        existing.setDifference(expected - received);
 
         Collections saved = collectionsRepository.save(existing);
         return convertToResponse(saved);
