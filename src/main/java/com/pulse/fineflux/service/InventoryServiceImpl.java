@@ -122,22 +122,27 @@ public class InventoryServiceImpl implements InventoryService {
         try {
             log.info("Updating inventory productId={} orgId={}", productId, orgId);
 
-            Inventory inventory = inventoryRepository.findByOrganizationIdAndProductId(orgId, productId)
+            Inventory prevInventory = inventoryRepository.findByOrganizationIdAndProductId(orgId, productId)
                     .orElseThrow(() -> new RuntimeException("Inventory not found"));
 
-            // Update inventory
-            inventory.setTotalCapacity(dto.getTotalCapacity());
-            inventory.setStockValue(dto.getStockValue());
-            inventory.setEmpId(dto.getEmpId());
-            inventory.setCurrentLevel(dto.getCurrentLevel());
-            inventory.setMetric(dto.getMetric());
-            inventory.setStatus(dto.getStatus());
-            inventory.setTankCapacity(dto.getTankCapacity());
-            inventory.setLastUpdated(new Date());
+            // Insert a NEW inventory record every update (do NOT update the old one)
+            Inventory inventory = Inventory.builder()
+                    .organizationId(orgId)
+                    .productId(productId)
+                    .productName(prevInventory.getProductName())
+                    .totalCapacity(dto.getTotalCapacity())
+                    .stockValue(dto.getStockValue())
+                    .lastUpdated(new Date())
+                    .empId(dto.getEmpId())
+                    .currentLevel(dto.getCurrentLevel())
+                    .metric(dto.getMetric())
+                    .status(dto.getStatus())
+                    .tankCapacity(dto.getTankCapacity())
+                    .build();
 
-            Inventory updated = inventoryRepository.save(inventory);
+            Inventory newRecord = inventoryRepository.save(inventory);
 
-            // Update product currentLevel
+            // Update product currentLevel as before
             productRepository.findByIdAndOrganizationId(productId, orgId)
                     .ifPresent(product -> {
                         product.setCurrentLevel(dto.getCurrentLevel());
@@ -146,24 +151,24 @@ public class InventoryServiceImpl implements InventoryService {
 
             // ALWAYS create InventoryLog record (history row) on update
             InventoryLog historyLog = InventoryLog.builder()
-                    .inventoryId(updated.getInventoryId())
-                    .organizationId(updated.getOrganizationId())
-                    .productId(updated.getProductId())
-                    .productName(updated.getProductName())
-                    .totalCapacity(updated.getTotalCapacity())
-                    .stockValue(updated.getStockValue())
-                    .lastUpdated(updated.getLastUpdated())
-                    .empId(updated.getEmpId())
-                    .currentLevel(updated.getCurrentLevel())
-                    .metric(updated.getMetric())
-                    .status(updated.getStatus())
-                    .tankCapacity(updated.getTankCapacity())
+                    .inventoryId(newRecord.getInventoryId())
+                    .organizationId(newRecord.getOrganizationId())
+                    .productId(newRecord.getProductId())
+                    .productName(newRecord.getProductName())
+                    .totalCapacity(newRecord.getTotalCapacity())
+                    .stockValue(newRecord.getStockValue())
+                    .lastUpdated(newRecord.getLastUpdated())
+                    .empId(newRecord.getEmpId())
+                    .currentLevel(newRecord.getCurrentLevel())
+                    .metric(newRecord.getMetric())
+                    .status(newRecord.getStatus())
+                    .tankCapacity(newRecord.getTankCapacity())
                     .build();
             inventoryLogRepository.save(historyLog);
 
             profitLossService.calculateAndSaveProfitLoss(orgId);
 
-            log.debug("Inventory updated, log inserted, and product currentLevel synced inventoryId={}", updated.getInventoryId());
+            log.debug("Inventory updated BY INSERT (new record), log inserted, and product currentLevel synced, new inventoryId={}", newRecord.getInventoryId());
             return inventoryRepository.findAllByOrganizationId(orgId).stream()
                     .map(this::mapToResponse)
                     .collect(Collectors.toList());
