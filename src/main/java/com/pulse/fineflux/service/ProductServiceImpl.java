@@ -1,14 +1,11 @@
 package com.pulse.fineflux.service;
 
+import com.pulse.fineflux.domain.InventoryCreateDTO;
 import com.pulse.fineflux.domain.ProductCreateDTO;
 import com.pulse.fineflux.domain.ProductResponseDTO;
 import com.pulse.fineflux.domain.ProductUpdateDTO;
 import com.pulse.fineflux.entity.Product;
-import com.pulse.fineflux.entity.Inventory;
-import com.pulse.fineflux.entity.InventoryLog;
 import com.pulse.fineflux.repository.ProductRepository;
-import com.pulse.fineflux.repository.InventoryRepository;
-import com.pulse.fineflux.repository.InventoryLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,11 +18,8 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class ProductServiceImpl implements ProductService {
-
     private final ProductRepository productRepository;
-    private final InventoryRepository inventoryRepository;
-    private final InventoryLogRepository inventoryLogRepository;
-
+    private final InventoryService inventoryService;
     /**
      * Get all products for a specific organization.
      */
@@ -80,7 +74,6 @@ public class ProductServiceImpl implements ProductService {
 
             Boolean status = dto.getStatus() != null ? dto.getStatus() : Boolean.TRUE;
 
-            // Save Product
             Product product = Product.builder()
                     .organizationId(dto.getOrganizationId())
                     .productName(dto.getProductName())
@@ -97,51 +90,23 @@ public class ProductServiceImpl implements ProductService {
             Product savedProduct = productRepository.save(product);
             log.debug("Product created successfully productId={} orgId={}", savedProduct.getId(), dto.getOrganizationId());
 
-            // ---- AUTOMATIC INVENTORY CREATION ----
-            BigDecimal totalCapacity = productRepository.findByOrganizationId(dto.getOrganizationId()).stream()
-                    .map(p -> p.getTankCapacity() != null ? p.getTankCapacity() : BigDecimal.ZERO)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-            BigDecimal currentLevel = savedProduct.getCurrentLevel() != null ? savedProduct.getCurrentLevel() : BigDecimal.ZERO;
-            BigDecimal price = savedProduct.getPrice() != null ? BigDecimal.valueOf(savedProduct.getPrice()) : BigDecimal.ZERO;
-            BigDecimal stockValue = price.multiply(currentLevel);
-
-            Inventory inventory = Inventory.builder()
+            // ---- CALL INVENTORY SERVICE FOR AUTO INSERT ----
+            InventoryCreateDTO invDto = InventoryCreateDTO.builder()
                     .organizationId(savedProduct.getOrganizationId())
                     .productId(savedProduct.getId())
                     .productName(savedProduct.getProductName())
-                    .totalCapacity(totalCapacity)
-                    .stockValue(stockValue)
+                    .totalCapacity(savedProduct.getTankCapacity())
+                    .stockValue(savedProduct.getPrice() != null ? BigDecimal.valueOf(savedProduct.getPrice()) : BigDecimal.ZERO)
                     .lastUpdated(new Date())
-                    .empId(dto.getEmpId()) // Use empId from DTO for consistency
-                    .currentLevel(currentLevel)
+                    .currentLevel(savedProduct.getCurrentLevel())
                     .metric(savedProduct.getMetric())
-                    .status(status)
+                    .status(savedProduct.getStatus())
                     .tankCapacity(savedProduct.getTankCapacity())
+                    .empId(dto.getEmpId()) // or employeeId as per your DTO
                     .build();
 
-            Inventory savedInventory = inventoryRepository.save(inventory);
-
-            // ---- AUTOMATIC INVENTORY LOG CREATION ----
-            InventoryLog logEntry = InventoryLog.builder()
-                    .inventoryId(savedInventory.getInventoryId())
-                    .organizationId(savedInventory.getOrganizationId())
-                    .productId(savedProduct.getId())
-                    .productName(savedProduct.getProductName())
-                    .totalCapacity(totalCapacity)
-                    .stockValue(stockValue)
-                    .lastUpdated(savedInventory.getLastUpdated())
-                    .empId(savedInventory.getEmpId())
-                    .currentLevel(savedInventory.getCurrentLevel())
-                    .metric(savedInventory.getMetric())
-                    .status(savedInventory.getStatus())
-                    .tankCapacity(savedInventory.getTankCapacity())
-                    .build();
-
-            inventoryLogRepository.save(logEntry);
-
-            log.debug("Automatic inventory and inventory log created productId={}, inventoryId={}",
-                    savedProduct.getId(), savedInventory.getInventoryId());
+            inventoryService.createInventory(invDto);
+            log.debug("Inventory and InventoryLog automatically inserted for productId={}", savedProduct.getId());
 
             return toResponse(savedProduct);
 

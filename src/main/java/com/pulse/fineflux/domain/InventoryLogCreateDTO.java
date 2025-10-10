@@ -22,4 +22,5 @@ public class InventoryLogCreateDTO {
     private String metric;
     private Boolean status;
     private BigDecimal tankCapacity;
+    private Date lastUpdated;
 }

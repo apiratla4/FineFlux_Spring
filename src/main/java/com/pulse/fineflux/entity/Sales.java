@@ -1,6 +1,5 @@
 package com.pulse.fineflux.entity;
 
-
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 import org.springframework.data.annotation.Id;
@@ -17,12 +16,11 @@ public class Sales {
 
     @Id
     private String id;
-
     private String organizationId;
     private LocalDateTime dateTime;
-    private String productName;     // fetched from Product
-    private String guns;            // fetched from GunInfo
-    private String employeeId;
+    private String productName;   // fetched from Product
+    private String guns;          // fetched from GunInfo
+    private String empId;         // SINGLE FIELD FOR EMPLOYEE ID (used everywhere)
     private double openingStock;
     private double closingStock;
     private double testingTotal;

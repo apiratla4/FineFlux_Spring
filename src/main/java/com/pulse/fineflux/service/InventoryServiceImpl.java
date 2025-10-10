@@ -30,7 +30,7 @@ public class InventoryServiceImpl implements InventoryService {
     private final ProfitLossService profitLossService;
 
     /**
-     * Create inventory entry and automatically insert InventoryLog.
+     * Create inventory entry and always insert InventoryLog (for history).
      */
     @Override
     @Transactional
@@ -85,14 +85,14 @@ public class InventoryServiceImpl implements InventoryService {
             product.setCurrentLevel(newCurrentLevel);
             productRepository.save(product);
 
-            // AUTOMATIC INVENTORYLOG INSERTION AT CREATE
+            // ALWAYS create InventoryLog record (history row) on create
             InventoryLog logEntry = InventoryLog.builder()
                     .inventoryId(savedInventory.getInventoryId())
                     .organizationId(savedInventory.getOrganizationId())
                     .productId(savedInventory.getProductId())
                     .productName(savedInventory.getProductName())
-                    .totalCapacity(totalCapacity)
-                    .stockValue(stockValue)
+                    .totalCapacity(savedInventory.getTotalCapacity())
+                    .stockValue(savedInventory.getStockValue())
                     .lastUpdated(savedInventory.getLastUpdated())
                     .empId(savedInventory.getEmpId())
                     .currentLevel(savedInventory.getCurrentLevel())
@@ -104,7 +104,7 @@ public class InventoryServiceImpl implements InventoryService {
 
             profitLossService.calculateAndSaveProfitLoss(dto.getOrganizationId());
 
-            log.debug("Inventory created and logged: inventoryId={}, productId={}", savedInventory.getInventoryId(), dto.getProductId());
+            log.debug("Inventory created and log inserted: inventoryId={}, productId={}", savedInventory.getInventoryId(), dto.getProductId());
             return mapToResponse(savedInventory);
 
         } catch (Exception e) {
@@ -114,7 +114,7 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     /**
-     * Update inventory and automatically insert InventoryLog.
+     * Update inventory and always insert InventoryLog (for history).
      */
     @Override
     @Transactional
@@ -144,9 +144,8 @@ public class InventoryServiceImpl implements InventoryService {
                         productRepository.save(product);
                     });
 
-            // Create a NEW InventoryLog HISTORY RECORD EVERY TIME!
+            // ALWAYS create InventoryLog record (history row) on update
             InventoryLog historyLog = InventoryLog.builder()
-                    // DO NOT SET historyLog.setId(...) — let Mongo generate it!
                     .inventoryId(updated.getInventoryId())
                     .organizationId(updated.getOrganizationId())
                     .productId(updated.getProductId())
@@ -160,11 +159,11 @@ public class InventoryServiceImpl implements InventoryService {
                     .status(updated.getStatus())
                     .tankCapacity(updated.getTankCapacity())
                     .build();
-            inventoryLogRepository.save(historyLog); // This creates a NEW row every time.
+            inventoryLogRepository.save(historyLog);
 
             profitLossService.calculateAndSaveProfitLoss(orgId);
 
-            log.debug("Inventory updated, history log inserted (no overwriting) inventoryId={}", updated.getInventoryId());
+            log.debug("Inventory updated, log inserted, and product currentLevel synced inventoryId={}", updated.getInventoryId());
             return inventoryRepository.findAllByOrganizationId(orgId).stream()
                     .map(this::mapToResponse)
                     .collect(Collectors.toList());
@@ -174,7 +173,6 @@ public class InventoryServiceImpl implements InventoryService {
             throw e;
         }
     }
-
 
     /**
      * Get all inventories for an organization.

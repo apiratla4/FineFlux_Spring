@@ -12,7 +12,7 @@ public class SalesResponseDTO {
     private LocalDateTime dateTime;
     private String productName;
     private String guns;
-    private String employeeId;
+    private String empId;         // UPDATED TO MATCH ENTITY
     private double openingStock;
     private double closingStock;
     private double testingTotal;
