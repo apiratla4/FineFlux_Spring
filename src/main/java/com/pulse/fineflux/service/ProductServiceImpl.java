@@ -4,7 +4,10 @@ import com.pulse.fineflux.domain.InventoryCreateDTO;
 import com.pulse.fineflux.domain.ProductCreateDTO;
 import com.pulse.fineflux.domain.ProductResponseDTO;
 import com.pulse.fineflux.domain.ProductUpdateDTO;
+import com.pulse.fineflux.entity.Inventory;
+import com.pulse.fineflux.entity.InventoryLog;
 import com.pulse.fineflux.entity.Product;
+import com.pulse.fineflux.repository.InventoryLogRepository;
 import com.pulse.fineflux.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +23,7 @@ import java.util.List;
 public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepository;
     private final InventoryService inventoryService;
+    private final InventoryLogRepository inventoryLogRepository;
     /**
      * Get all products for a specific organization.
      */
@@ -143,9 +147,24 @@ public class ProductServiceImpl implements ProductService {
             Product updatedProduct = productRepository.save(product);
             log.debug("Product updated successfully productId={} orgId={}", updatedProduct.getId(), orgId);
 
+            // -- UPDATE Inventory entity's currentLevel field --
+            List<Inventory> inventories = inventoryService.getInventoriesByProductAndOrg(orgId, productId); // You need this method!
+            for (Inventory inv : inventories) {
+                inv.setCurrentLevel(updatedProduct.getCurrentLevel());
+                inventoryService.saveInventory(inv); // persist the change in Inventory entity
+
+                // -- UPDATE matching InventoryLog entity's currentLevel field --
+                InventoryLog inventoryLog = inventoryService.getInventoryLogByInventoryId(inv.getInventoryId());
+                if (inventoryLog != null) {
+                    inventoryLog.setCurrentLevel(updatedProduct.getCurrentLevel());
+                    inventoryLogRepository.save(inventoryLog);
+                    log.debug("InventoryLog updated for inventoryId={} with new currentLevel={}", inv.getInventoryId(), updatedProduct.getCurrentLevel());
+                }
+            }
+
             return toResponse(updatedProduct);
         } catch (RuntimeException e) {
-            throw e; // Already logged
+            throw e;
         } catch (Exception e) {
             log.error("Error updating product productId={} orgId={}", productId, orgId, e);
             throw new RuntimeException("Failed to update product", e);

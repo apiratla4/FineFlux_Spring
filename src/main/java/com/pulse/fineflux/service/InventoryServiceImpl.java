@@ -211,6 +211,21 @@ public class InventoryServiceImpl implements InventoryService {
         }
     }
 
+    @Override
+    public List<Inventory> getInventoriesByProductAndOrg(String orgId, String productId) {
+        return inventoryRepository.findAllByOrganizationIdAndProductId(orgId, productId);
+    }
+
+    @Override
+    public void saveInventory(Inventory inventory) {
+        inventoryRepository.save(inventory);
+    }
+
+    @Override
+    public InventoryLog getInventoryLogByInventoryId(String inventoryId) {
+        return inventoryLogRepository.findByInventoryId(inventoryId);
+    }
+
     private InventoryResponseDTO mapToResponse(Inventory entity) {
         return InventoryResponseDTO.builder()
                 .inventoryId(entity.getInventoryId())
