@@ -215,6 +215,16 @@ public class InventoryServiceImpl implements InventoryService {
         }
     }
 
+    //Fetch a single latest inventory entry for an org/product via timestamp
+    public InventoryResponseDTO getLatestInventory(String orgId, String productId) {
+        Inventory latest = inventoryRepository.findTopByOrganizationIdAndProductIdOrderByLastUpdatedDesc(orgId, productId);
+        if (latest == null) {
+            throw new RuntimeException("No inventory found for org=" + orgId + " product=" + productId);
+        }
+        return mapToResponse(latest);
+    }
+
+
     /**
      * Mapper: Inventory entity to InventoryResponseDTO.
      */

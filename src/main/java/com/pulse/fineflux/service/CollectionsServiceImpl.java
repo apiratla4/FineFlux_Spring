@@ -36,7 +36,7 @@ public class CollectionsServiceImpl implements CollectionsService {
         double received = dto.getCashReceived() + dto.getPhonePay() + dto.getCreditCard();
         entity.setExpectedTotal(expected);
         entity.setReceivedTotal(received);
-
+        entity.setId(dto.getEmpId());
 
         Collections saved = collectionsRepository.save(entity);
         return convertToResponse(saved);

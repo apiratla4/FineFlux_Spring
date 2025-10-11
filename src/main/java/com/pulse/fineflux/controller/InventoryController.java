@@ -98,4 +98,23 @@ public class InventoryController {
             return ResponseEntity.status(500).build();
         }
     }
+
+    /**
+     * Get the latest inventory entry for a product in an organization.
+     */
+    @GetMapping("/{productId}/latest")
+    public ResponseEntity<InventoryResponseDTO> getLatestInventory(
+            @PathVariable String orgId,
+            @PathVariable String productId) {
+        try {
+            log.info("Fetching latest inventory for orgId={}, productId={}", orgId, productId);
+            InventoryResponseDTO response = inventoryService.getLatestInventory(orgId, productId);
+            log.debug("Fetched latest inventory for orgId={}, productId={}", orgId, productId);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error fetching latest inventory for orgId={} productId={}", orgId, productId, e);
+            return ResponseEntity.status(404).build();
+        }
+    }
+
 }
