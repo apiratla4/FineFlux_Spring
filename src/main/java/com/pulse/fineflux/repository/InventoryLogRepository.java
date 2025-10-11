@@ -9,10 +9,13 @@ import java.util.Optional;
 
 public interface InventoryLogRepository extends MongoRepository<InventoryLog, String> {
     List<InventoryLog> findByOrganizationId(String organizationId);
+
     List<InventoryLog> findByOrganizationIdAndProductNameIgnoreCaseOrderByLastUpdatedDesc(String orgId, String productName);
+
     Optional<InventoryLog> findTopByProductIdOrderByLastUpdatedDesc(String productId);
+
     @Query("{ 'organizationId': ?0, 'productName': { $regex: ?1, $options: 'i' } }")
     List<InventoryLog> findByOrganizationIdAndProductNameRegex(String orgId, String productNameRegex);
 
-
+    void deleteById(String id); // Inherited from MongoRepository
 }

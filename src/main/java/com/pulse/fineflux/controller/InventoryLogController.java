@@ -35,6 +35,13 @@ public class InventoryLogController {
         }
     }
 
+    // Delete single inventory log by MongoDB id
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteLog(@PathVariable String orgId, @PathVariable String id) {
+        inventoryLogService.deleteLog(orgId, id);
+        return ResponseEntity.noContent().build();
+    }
+
     // Get all logs by product name for organization (ignoring date)
     @GetMapping("/by-product")
     public ResponseEntity<List<InventoryLogResponseDTO>> getLogsByProductName(

@@ -8,7 +8,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 
 @Slf4j
@@ -19,9 +18,6 @@ public class InventoryController {
 
     private final InventoryService inventoryService;
 
-    /**
-     * Create a new inventory entry (auto logs and syncs product currentLevel).
-     */
     @PostMapping
     public ResponseEntity<InventoryResponseDTO> create(
             @PathVariable String orgId,
@@ -29,9 +25,7 @@ public class InventoryController {
         try {
             dto.setOrganizationId(orgId);
             log.info("Creating inventory for orgId={}, productId={}", orgId, dto.getProductId());
-
             InventoryResponseDTO response = inventoryService.createInventory(dto);
-
             log.debug("Inventory created successfully inventoryId={}", response.getInventoryId());
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -40,9 +34,6 @@ public class InventoryController {
         }
     }
 
-    /**
-     * Update existing inventory by product ID (auto logs and syncs product currentLevel).
-     */
     @PutMapping("/{productId}")
     public ResponseEntity<List<InventoryResponseDTO>> update(
             @PathVariable String orgId,
@@ -50,9 +41,7 @@ public class InventoryController {
             @RequestBody InventoryUpdateDTO dto) {
         try {
             log.info("Updating inventory for orgId={}, productId={}", orgId, productId);
-
             List<InventoryResponseDTO> updatedList = inventoryService.updateInventory(orgId, productId, dto);
-
             log.debug("Inventory updated successfully for productId={}", productId);
             return ResponseEntity.ok(updatedList);
         } catch (Exception e) {
@@ -61,16 +50,11 @@ public class InventoryController {
         }
     }
 
-    /**
-     * List all inventories for an organization.
-     */
     @GetMapping
     public ResponseEntity<List<InventoryResponseDTO>> list(@PathVariable String orgId) {
         try {
             log.info("Fetching all inventories for orgId={}", orgId);
-
             List<InventoryResponseDTO> inventories = inventoryService.getAllInventories(orgId);
-
             log.debug("Fetched {} inventories for orgId={}", inventories.size(), orgId);
             return ResponseEntity.ok(inventories);
         } catch (Exception e) {
@@ -79,18 +63,13 @@ public class InventoryController {
         }
     }
 
-    /**
-     * Delete inventory by inventory ID.
-     */
     @DeleteMapping("/{inventoryId}")
     public ResponseEntity<Void> delete(
             @PathVariable String orgId,
             @PathVariable String inventoryId) {
         try {
             log.info("Deleting inventory inventoryId={} for orgId={}", inventoryId, orgId);
-
             inventoryService.deleteInventory(orgId, inventoryId);
-
             log.debug("Inventory deleted successfully inventoryId={}", inventoryId);
             return ResponseEntity.noContent().build();
         } catch (Exception e) {
@@ -99,9 +78,6 @@ public class InventoryController {
         }
     }
 
-    /**
-     * Get the latest inventory entry for a product in an organization.
-     */
     @GetMapping("/{productId}/latest")
     public ResponseEntity<InventoryResponseDTO> getLatestInventory(
             @PathVariable String orgId,
@@ -116,5 +92,4 @@ public class InventoryController {
             return ResponseEntity.status(404).build();
         }
     }
-
 }

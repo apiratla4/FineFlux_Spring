@@ -9,6 +9,7 @@ import java.util.Date;
 @Data
 @Builder
 public class InventoryLogResponseDTO {
+    private String id;                   // <-- MongoDB id, required for deletion and row keys
     private String inventoryId;
     private String organizationId;
     private String productId;

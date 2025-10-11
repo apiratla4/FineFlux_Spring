@@ -42,10 +42,20 @@ public class InventoryLogServiceImpl implements InventoryLogService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public void deleteLog(String orgId, String id) {
+        InventoryLog log = inventoryLogRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Log not found: " + id));
+        if (!log.getOrganizationId().equals(orgId)) {
+            throw new RuntimeException("Log does not belong to this organization");
+        }
+        inventoryLogRepository.deleteById(id);
+    }
 
     // Internal mapping helper
     private InventoryLogResponseDTO toDto(InventoryLog log) {
         return InventoryLogResponseDTO.builder()
+                .id(log.getId())                      // <--- Ensure this line is present
                 .inventoryId(log.getInventoryId())
                 .organizationId(log.getOrganizationId())
                 .productId(log.getProductId())
@@ -60,4 +70,5 @@ public class InventoryLogServiceImpl implements InventoryLogService {
                 .tankCapacity(log.getTankCapacity())
                 .build();
     }
+
 }
