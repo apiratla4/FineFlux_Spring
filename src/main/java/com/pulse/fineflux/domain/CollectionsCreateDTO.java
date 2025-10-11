@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 public class CollectionsCreateDTO {
 
     private String organizationId;
-    private String employeeId;
+    private String empId;
     private LocalDateTime dateTime;
     private double cashReceived;
     private double phonePay;

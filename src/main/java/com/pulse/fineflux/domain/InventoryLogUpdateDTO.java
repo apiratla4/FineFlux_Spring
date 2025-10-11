@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 public class InventoryLogUpdateDTO {
     private BigDecimal totalCapacity;
     private BigDecimal stockValue;
-    private Integer employeeId;
+    private String empId;
     private BigDecimal currentLevel;
     private String metric;
     private Boolean status;

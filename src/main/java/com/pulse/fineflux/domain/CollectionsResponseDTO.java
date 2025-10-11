@@ -12,7 +12,7 @@ public class CollectionsResponseDTO {
 
     private String id;
     private String organizationId;
-    private String employeeId;
+    private String empId;
     private LocalDateTime dateTime;
     private double cashReceived;
     private double phonePay;
@@ -20,5 +20,5 @@ public class CollectionsResponseDTO {
     private double shortCollections;
     private double expectedTotal;
     private double receivedTotal;
-    //private double difference;
+
 }

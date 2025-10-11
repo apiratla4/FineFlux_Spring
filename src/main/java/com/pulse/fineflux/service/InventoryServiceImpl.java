@@ -1,8 +1,11 @@
 package com.pulse.fineflux.service;
 
-import com.pulse.fineflux.domain.*;
+import com.pulse.fineflux.domain.InventoryCreateDTO;
+import com.pulse.fineflux.domain.InventoryResponseDTO;
+import com.pulse.fineflux.domain.InventoryUpdateDTO;
 import com.pulse.fineflux.entity.Inventory;
 import com.pulse.fineflux.entity.InventoryLog;
+import com.pulse.fineflux.entity.Product;
 import com.pulse.fineflux.repository.InventoryRepository;
 import com.pulse.fineflux.repository.InventoryLogRepository;
 import com.pulse.fineflux.repository.ProductRepository;
@@ -25,49 +28,43 @@ public class InventoryServiceImpl implements InventoryService {
     private final InventoryLogRepository inventoryLogRepository;
     private final ProductRepository productRepository;
     private final ProfitLossService profitLossService;
+
     /**
-     * Create a new inventory entry with logging and try-catch.
+     * Create inventory entry and always insert InventoryLog (for history).
      */
     @Override
     @Transactional
     public InventoryResponseDTO createInventory(InventoryCreateDTO dto) {
         try {
             log.info("Creating inventory for productId={} orgId={}", dto.getProductId(), dto.getOrganizationId());
-
-            // 1️⃣ Fetch product info
-            var product = productRepository.findByIdAndOrganizationId(dto.getProductId(), dto.getOrganizationId())
+            Product product = productRepository.findByIdAndOrganizationId(dto.getProductId(), dto.getOrganizationId())
                     .orElseThrow(() -> new RuntimeException("Product not found with ID: " + dto.getProductId()));
 
             if (!Boolean.TRUE.equals(product.getStatus())) {
                 throw new IllegalStateException("Cannot create inventory for INACTIVE product: " + product.getProductName());
             }
 
-            // 2️⃣ Get latest log to find previous level
-            var latestLogOpt = inventoryLogRepository.findTopByProductIdOrderByLastUpdatedDesc(dto.getProductId());
-            BigDecimal previousLevel = latestLogOpt.map(InventoryLog::getCurrentLevel).orElse(BigDecimal.ZERO);
+            BigDecimal previousLevel = inventoryLogRepository
+                    .findTopByProductIdOrderByLastUpdatedDesc(dto.getProductId())
+                    .map(InventoryLog::getCurrentLevel)
+                    .orElse(BigDecimal.ZERO);
 
-            // 3️⃣ Calculate new current level by adding new quantity
             BigDecimal newCurrentLevel = previousLevel.add(dto.getCurrentLevel());
 
-            // 4️⃣ Business Rule: Check if new level exceeds tank capacity
             if (newCurrentLevel.compareTo(product.getTankCapacity()) > 0) {
                 throw new IllegalStateException(String.format(
-                        "Adding quantity %.2f would exceed tank capacity of %.2f for product '%s'. Current level is %.2f.",
-                        dto.getCurrentLevel(), product.getTankCapacity(), product.getProductName(), previousLevel
+                        "Adding %.2f exceeds tank capacity %.2f for product '%s'",
+                        dto.getCurrentLevel(), product.getTankCapacity(), product.getProductName()
                 ));
             }
 
-            // 5️⃣ Calculate total capacity (sum of all product tank capacities for this org)
             BigDecimal totalCapacity = productRepository.findByOrganizationId(dto.getOrganizationId()).stream()
                     .map(p -> p.getTankCapacity() != null ? p.getTankCapacity() : BigDecimal.ZERO)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-            // 6️⃣ Calculate stock value (price × current level)
-            BigDecimal stockValue = BigDecimal.valueOf(
-                    product.getPrice() != null ? product.getPrice() : 0.0
-            ).multiply(newCurrentLevel);
+            BigDecimal price = product.getPrice() != null ? BigDecimal.valueOf(product.getPrice()) : BigDecimal.ZERO;
+            BigDecimal stockValue = price.multiply(newCurrentLevel);
 
-            // 7️⃣ Save inventory
             Inventory inventory = Inventory.builder()
                     .organizationId(dto.getOrganizationId())
                     .productId(dto.getProductId())
@@ -75,108 +72,53 @@ public class InventoryServiceImpl implements InventoryService {
                     .totalCapacity(totalCapacity)
                     .stockValue(stockValue)
                     .lastUpdated(new Date())
-                    .employeeId(dto.getEmployeeId())
+                    .empId(dto.getEmpId())
                     .currentLevel(newCurrentLevel)
                     .metric(dto.getMetric())
                     .status(true)
                     .tankCapacity(product.getTankCapacity())
                     .build();
 
-            Inventory saved = inventoryRepository.save(inventory);
-            profitLossService.calculateAndSaveProfitLoss(dto.getOrganizationId());
+            Inventory savedInventory = inventoryRepository.save(inventory);
 
-            log.debug("✅ Inventory created inventoryId={}", saved.getInventoryId());
-
-            // 8️⃣ Update product level
+            // Sync product's currentLevel
             product.setCurrentLevel(newCurrentLevel);
             productRepository.save(product);
 
-            // 9️⃣ Save log entry
-            inventoryLogRepository.save(InventoryLog.builder()
-                    .inventoryId(saved.getInventoryId())
-                    .organizationId(saved.getOrganizationId())
-                    .productId(saved.getProductId())
-                    .productName(saved.getProductName())
-                    .totalCapacity(totalCapacity)
-                    .stockValue(stockValue)
-                    .lastUpdated(saved.getLastUpdated())
-                    .employeeId(saved.getEmployeeId())
-                    .currentLevel(saved.getCurrentLevel())
-                    .metric(saved.getMetric())
-                    .status(saved.getStatus())
-                    .tankCapacity(saved.getTankCapacity())
-                    .build());
-
-            return mapToResponse(saved);
-        } catch (Exception e) {
-            log.error("❌ Error creating inventory for productId={} orgId={}", dto.getProductId(), dto.getOrganizationId(), e);
-            throw e;
-        }
-    }
-
-    /**
-     * Update an existing inventory entry with logging and try-catch.
-     */
-    @Override
-    @Transactional
-    public List<InventoryResponseDTO> updateInventory(String orgId, String productId, InventoryUpdateDTO dto) {
-        try {
-            log.info("Updating inventory productId={} orgId={}", productId, orgId);
-
-            Inventory inventory = inventoryRepository.findByOrganizationIdAndProductId(orgId, productId)
-                    .orElseThrow(() -> new RuntimeException("Inventory not found"));
-
-            inventory.setTotalCapacity(dto.getTotalCapacity());
-            inventory.setStockValue(dto.getStockValue());
-            inventory.setEmployeeId(dto.getEmployeeId());
-            inventory.setCurrentLevel(dto.getCurrentLevel());
-            inventory.setMetric(dto.getMetric());
-            inventory.setStatus(dto.getStatus());
-            inventory.setTankCapacity(dto.getTankCapacity());
-            inventory.setLastUpdated(new Date());
-
-            Inventory updated = inventoryRepository.save(inventory);
-
-            log.debug("Inventory updated successfully inventoryId={}", updated.getInventoryId());
-
-            // Update product current level automatically
-            productRepository.findByIdAndOrganizationId(productId, orgId)
-                    .ifPresent(product -> {
-                        product.setCurrentLevel(dto.getCurrentLevel());
-                        productRepository.save(product);
-                        log.debug("Product currentLevel updated productId={}", product.getId());
-                    });
-
-            // Create log entry
+            // ALWAYS create InventoryLog record (history row) on create
             InventoryLog logEntry = InventoryLog.builder()
-                    .inventoryId(updated.getInventoryId())
-                    .organizationId(updated.getOrganizationId())
-                    .productId(updated.getProductId())
-                    .productName(updated.getProductName())
-                    .totalCapacity(updated.getTotalCapacity())
-                    .stockValue(updated.getStockValue())
-                    .lastUpdated(updated.getLastUpdated())
-                    .employeeId(updated.getEmployeeId())
-                    .currentLevel(updated.getCurrentLevel())
-                    .metric(updated.getMetric())
-                    .status(updated.getStatus())
-                    .tankCapacity(updated.getTankCapacity())
+                    .inventoryId(savedInventory.getInventoryId())
+                    .organizationId(savedInventory.getOrganizationId())
+                    .productId(savedInventory.getProductId())
+                    .productName(savedInventory.getProductName())
+                    .totalCapacity(savedInventory.getTotalCapacity())
+                    .stockValue(savedInventory.getStockValue())
+                    .lastUpdated(savedInventory.getLastUpdated())
+                    .empId(savedInventory.getEmpId())
+                    .currentLevel(savedInventory.getCurrentLevel())
+                    .metric(savedInventory.getMetric())
+                    .status(savedInventory.getStatus())
+                    .tankCapacity(savedInventory.getTankCapacity())
                     .build();
             inventoryLogRepository.save(logEntry);
-            profitLossService.calculateAndSaveProfitLoss(dto.getOrganizationId());
-            log.debug("Inventory log saved successfully inventoryId={}", updated.getInventoryId());
 
-            return inventoryRepository.findAllByOrganizationId(orgId).stream()
-                    .map(this::mapToResponse)
-                    .collect(Collectors.toList());
+            profitLossService.calculateAndSaveProfitLoss(dto.getOrganizationId());
+
+            log.debug("Inventory created and log inserted: inventoryId={}, productId={}", savedInventory.getInventoryId(), dto.getProductId());
+            return mapToResponse(savedInventory);
+
         } catch (Exception e) {
-            log.error("Error updating inventory productId={} orgId={}", productId, orgId, e);
+            log.error("Error creating inventory productId={} orgId={}", dto.getProductId(), dto.getOrganizationId(), e);
             throw e;
         }
     }
 
     /**
-     * Get all inventories for an organization with logging and try-catch.
+     * Update inventory and always insert InventoryLog (for history).
+     */
+
+    /**
+     * Get all inventories for an organization.
      */
     @Override
     public List<InventoryResponseDTO> getAllInventories(String orgId) {
@@ -192,9 +134,73 @@ public class InventoryServiceImpl implements InventoryService {
             throw e;
         }
     }
+    @Override
+    @Transactional
+    public List<InventoryResponseDTO> updateInventory(String orgId, String productId, InventoryUpdateDTO dto) {
+        try {
+            log.info("Updating inventory for orgId={}, productId={}", orgId, productId);
 
+            // Lookup product
+            Product product = productRepository.findByIdAndOrganizationId(productId, orgId)
+                    .orElseThrow(() -> new RuntimeException("Product not found"));
+
+            // Insert a new Inventory record for the update
+            Inventory inventory = Inventory.builder()
+                    .organizationId(orgId)
+                    .productId(productId)
+                    .productName(product.getProductName())
+                    .totalCapacity(dto.getTotalCapacity())
+                    .stockValue(dto.getStockValue())
+                    .lastUpdated(new Date())
+                    .empId(dto.getEmpId())
+                    .currentLevel(dto.getCurrentLevel())
+                    .metric(dto.getMetric())
+                    .status(dto.getStatus())
+                    .tankCapacity(dto.getTankCapacity())
+                    .build();
+
+            Inventory savedRecord = inventoryRepository.save(inventory);
+
+            // ---- NEW LOGIC: Add updated inventory's new currentLevel + product's currentLevel BEFORE update ----
+
+            BigDecimal updatedInventoryLevel = savedRecord.getCurrentLevel() != null ? savedRecord.getCurrentLevel() : BigDecimal.ZERO;
+            BigDecimal productLevelBefore = product.getCurrentLevel() != null ? product.getCurrentLevel() : BigDecimal.ZERO;
+
+            BigDecimal newProductLevel = productLevelBefore.add(updatedInventoryLevel);
+
+            product.setCurrentLevel(newProductLevel);
+            productRepository.save(product);
+
+            // Insert InventoryLog (new row every update)
+            InventoryLog historyLog = InventoryLog.builder()
+                    .inventoryId(savedRecord.getInventoryId())
+                    .organizationId(savedRecord.getOrganizationId())
+                    .productId(savedRecord.getProductId())
+                    .productName(savedRecord.getProductName())
+                    .totalCapacity(savedRecord.getTotalCapacity())
+                    .stockValue(savedRecord.getStockValue())
+                    .lastUpdated(savedRecord.getLastUpdated())
+                    .empId(savedRecord.getEmpId())
+                    .currentLevel(savedRecord.getCurrentLevel())
+                    .metric(savedRecord.getMetric())
+                    .status(savedRecord.getStatus())
+                    .tankCapacity(savedRecord.getTankCapacity())
+                    .build();
+            inventoryLogRepository.save(historyLog);
+
+            profitLossService.calculateAndSaveProfitLoss(orgId);
+
+            log.debug("Inventory updated BY INSERT (new record), history log inserted, and product's currentLevel updated with SUM. inventoryId={}", savedRecord.getInventoryId());
+            return inventoryRepository.findAllByOrganizationId(orgId).stream()
+                    .map(this::mapToResponse)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Error updating inventory productId={} orgId={}", productId, orgId, e);
+            throw e;
+        }
+    }
     /**
-     * Delete an inventory entry with logging and try-catch.
+     * Delete an inventory entry by id.
      */
     @Override
     @Transactional
@@ -209,8 +215,18 @@ public class InventoryServiceImpl implements InventoryService {
         }
     }
 
+    //Fetch a single latest inventory entry for an org/product via timestamp
+    public InventoryResponseDTO getLatestInventory(String orgId, String productId) {
+        Inventory latest = inventoryRepository.findTopByOrganizationIdAndProductIdOrderByLastUpdatedDesc(orgId, productId);
+        if (latest == null) {
+            throw new RuntimeException("No inventory found for org=" + orgId + " product=" + productId);
+        }
+        return mapToResponse(latest);
+    }
+
+
     /**
-     * Mapper method: Inventory entity -> InventoryResponseDTO
+     * Mapper: Inventory entity to InventoryResponseDTO.
      */
     private InventoryResponseDTO mapToResponse(Inventory entity) {
         return InventoryResponseDTO.builder()
@@ -221,7 +237,7 @@ public class InventoryServiceImpl implements InventoryService {
                 .totalCapacity(entity.getTotalCapacity())
                 .stockValue(entity.getStockValue())
                 .lastUpdated(entity.getLastUpdated())
-                .employeeId(entity.getEmployeeId())
+                .empId(entity.getEmpId())
                 .currentLevel(entity.getCurrentLevel())
                 .metric(entity.getMetric())
                 .status(entity.getStatus())

@@ -56,7 +56,7 @@ public class ProductController {
             @PathVariable String orgId,
             @Valid @RequestBody ProductCreateDTO dto) {
         try {
-            dto.setOrganizationId(orgId);
+            dto.setOrganizationId(orgId); // ensure orgId is set
             log.info("Creating product for orgId={} productName={}", orgId, dto.getProductName());
             ProductResponseDTO product = productService.createProduct(dto);
             return ResponseEntity.status(HttpStatus.CREATED).body(product);

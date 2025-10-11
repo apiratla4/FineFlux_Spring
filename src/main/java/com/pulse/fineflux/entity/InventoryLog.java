@@ -15,19 +15,18 @@ import java.util.Date;
 public class InventoryLog {
 
     @Id
-    private String inventoryId; // MongoDB _id
+    private String id; // Unique log entry ID—do NOT use inventoryId as your log table's primary key!
 
-    private String organizationId; // 🔹 added for multi-tenancy
-
-    private String productId;      // reference to Product
+    private String inventoryId;
+    private String organizationId;
+    private String productId;
     private String productName;
     private BigDecimal totalCapacity;
     private BigDecimal stockValue;
     private Date lastUpdated;
-    private Integer employeeId;
+    private String empId;
     private BigDecimal currentLevel;
     private String metric;
     private Boolean status;
     private BigDecimal tankCapacity;
-
 }

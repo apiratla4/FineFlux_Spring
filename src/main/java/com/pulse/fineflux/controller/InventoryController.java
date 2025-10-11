@@ -1,11 +1,14 @@
 package com.pulse.fineflux.controller;
 
-import com.pulse.fineflux.domain.*;
+import com.pulse.fineflux.domain.InventoryCreateDTO;
+import com.pulse.fineflux.domain.InventoryResponseDTO;
+import com.pulse.fineflux.domain.InventoryUpdateDTO;
 import com.pulse.fineflux.service.InventoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
 
 @Slf4j
@@ -17,7 +20,7 @@ public class InventoryController {
     private final InventoryService inventoryService;
 
     /**
-     * Create a new inventory entry.
+     * Create a new inventory entry (auto logs and syncs product currentLevel).
      */
     @PostMapping
     public ResponseEntity<InventoryResponseDTO> create(
@@ -25,7 +28,7 @@ public class InventoryController {
             @RequestBody InventoryCreateDTO dto) {
         try {
             dto.setOrganizationId(orgId);
-            log.info("Creating inventory for orgId={}, productName={}", orgId, dto.getProductName());
+            log.info("Creating inventory for orgId={}, productId={}", orgId, dto.getProductId());
 
             InventoryResponseDTO response = inventoryService.createInventory(dto);
 
@@ -38,7 +41,7 @@ public class InventoryController {
     }
 
     /**
-     * Update existing inventory by product ID.
+     * Update existing inventory by product ID (auto logs and syncs product currentLevel).
      */
     @PutMapping("/{productId}")
     public ResponseEntity<List<InventoryResponseDTO>> update(
@@ -95,4 +98,23 @@ public class InventoryController {
             return ResponseEntity.status(500).build();
         }
     }
+
+    /**
+     * Get the latest inventory entry for a product in an organization.
+     */
+    @GetMapping("/{productId}/latest")
+    public ResponseEntity<InventoryResponseDTO> getLatestInventory(
+            @PathVariable String orgId,
+            @PathVariable String productId) {
+        try {
+            log.info("Fetching latest inventory for orgId={}, productId={}", orgId, productId);
+            InventoryResponseDTO response = inventoryService.getLatestInventory(orgId, productId);
+            log.debug("Fetched latest inventory for orgId={}, productId={}", orgId, productId);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error fetching latest inventory for orgId={} productId={}", orgId, productId, e);
+            return ResponseEntity.status(404).build();
+        }
+    }
+
 }

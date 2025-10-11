@@ -7,5 +7,10 @@ import java.util.Optional;
 
 public interface InventoryRepository extends MongoRepository<Inventory, String> {
     List<Inventory> findAllByOrganizationId(String organizationId);
-    Optional<Inventory> findByOrganizationIdAndProductId(String organizationId, String productId);
+
+    List<Inventory> findAllByOrganizationIdAndProductId(String orgId, String productId);
+    // Fetch a single latest inventory entry for an org/product via timestamp
+    Inventory findTopByOrganizationIdAndProductIdOrderByLastUpdatedDesc(String orgId, String productId);
+
+
 }

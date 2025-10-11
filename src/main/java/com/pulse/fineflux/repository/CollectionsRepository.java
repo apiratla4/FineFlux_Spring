@@ -7,7 +7,10 @@ import java.util.List;
 
 public interface CollectionsRepository extends MongoRepository<Collections, String> {
     List<Collections> findByOrganizationId(String organizationId);
-    List<Collections> findByOrganizationIdAndDateTime(String organizationId, LocalDateTime dateTime);
+
+    List<Collections> findByOrganizationIdAndEmpIdAndDateTimeBetween(String orgId, String empId, LocalDateTime from, LocalDateTime to);
+
+
 
 }
 

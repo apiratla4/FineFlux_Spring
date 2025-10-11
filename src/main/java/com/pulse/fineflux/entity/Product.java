@@ -31,4 +31,5 @@ public class Product {
     private String supplier;
     private BigDecimal currentLevel;
     private String metric;
+    private String empId;
 }

@@ -1,5 +1,6 @@
 package com.pulse.fineflux.service;
 
+import com.pulse.fineflux.domain.InventoryCreateDTO;
 import com.pulse.fineflux.domain.ProductCreateDTO;
 import com.pulse.fineflux.domain.ProductResponseDTO;
 import com.pulse.fineflux.domain.ProductUpdateDTO;
@@ -17,19 +18,16 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class ProductServiceImpl implements ProductService {
-
     private final ProductRepository productRepository;
-
+    private final InventoryService inventoryService;
     /**
      * Get all products for a specific organization.
-
      */
     @Override
     public List<ProductResponseDTO> getAllProducts(String orgId) {
         try {
             log.info("Fetching all products for orgId={}", orgId);
 
-            // Fetch from repository and map to DTO
             List<ProductResponseDTO> products = productRepository.findByOrganizationId(orgId)
                     .stream()
                     .map(this::toResponse)
@@ -67,17 +65,15 @@ public class ProductServiceImpl implements ProductService {
     }
 
     /**
-     * Create a new product.
+     * Create a new product and automatically create Inventory and InventoryLog.
      */
     @Override
     public ProductResponseDTO createProduct(ProductCreateDTO dto) {
         try {
             log.info("Creating product for orgId={} productName={}", dto.getOrganizationId(), dto.getProductName());
 
-            // Set default status if null
             Boolean status = dto.getStatus() != null ? dto.getStatus() : Boolean.TRUE;
 
-            // Build the entity
             Product product = Product.builder()
                     .organizationId(dto.getOrganizationId())
                     .productName(dto.getProductName())
@@ -88,19 +84,41 @@ public class ProductServiceImpl implements ProductService {
                     .supplier(dto.getSupplier())
                     .currentLevel(dto.getCurrentLevel() != null ? dto.getCurrentLevel() : BigDecimal.ZERO)
                     .metric(dto.getMetric())
-                    .lastUpdated(new Date()) // set current date/time
+                    .lastUpdated(new Date())
                     .build();
 
             Product savedProduct = productRepository.save(product);
             log.debug("Product created successfully productId={} orgId={}", savedProduct.getId(), dto.getOrganizationId());
 
+            // ---- CALL INVENTORY SERVICE FOR AUTO INSERT ----
+            InventoryCreateDTO invDto = InventoryCreateDTO.builder()
+                    .organizationId(savedProduct.getOrganizationId())
+                    .productId(savedProduct.getId())
+                    .productName(savedProduct.getProductName())
+                    .totalCapacity(savedProduct.getTankCapacity())
+                    .stockValue(savedProduct.getPrice() != null ? BigDecimal.valueOf(savedProduct.getPrice()) : BigDecimal.ZERO)
+                    .lastUpdated(new Date())
+                    .currentLevel(savedProduct.getCurrentLevel())
+                    .metric(savedProduct.getMetric())
+                    .status(savedProduct.getStatus())
+                    .tankCapacity(savedProduct.getTankCapacity())
+                    .empId(dto.getEmpId()) // or employeeId as per your DTO
+                    .build();
+
+            inventoryService.createInventory(invDto);
+            log.debug("Inventory and InventoryLog automatically inserted for productId={}", savedProduct.getId());
+
             return toResponse(savedProduct);
+
         } catch (Exception e) {
             log.error("Error creating product orgId={} productName={}", dto.getOrganizationId(), dto.getProductName(), e);
             throw new RuntimeException("Failed to create product", e);
         }
     }
 
+    /**
+     * Update Product.
+     */
     @Override
     public ProductResponseDTO updateProduct(String orgId, String productId, ProductUpdateDTO dto) {
         try {
@@ -112,7 +130,6 @@ public class ProductServiceImpl implements ProductService {
                         return new RuntimeException("Product not found");
                     });
 
-            // Update fields
             product.setProductName(dto.getProductName());
             product.setPrice(dto.getPrice());
             product.setStatus(dto.getStatus() != null ? dto.getStatus() : product.getStatus());
@@ -121,7 +138,7 @@ public class ProductServiceImpl implements ProductService {
             product.setSupplier(dto.getSupplier());
             product.setCurrentLevel(dto.getCurrentLevel());
             product.setMetric(dto.getMetric());
-            product.setLastUpdated(new Date()); // set current date/time on update
+            product.setLastUpdated(new Date());
 
             Product updatedProduct = productRepository.save(product);
             log.debug("Product updated successfully productId={} orgId={}", updatedProduct.getId(), orgId);
@@ -134,7 +151,6 @@ public class ProductServiceImpl implements ProductService {
             throw new RuntimeException("Failed to update product", e);
         }
     }
-
 
     /**
      * Delete a product by ID for a specific organization.
@@ -175,6 +191,8 @@ public class ProductServiceImpl implements ProductService {
                 .supplier(p.getSupplier())
                 .currentLevel(p.getCurrentLevel())
                 .metric(p.getMetric())
+                .empId(p.getEmpId())
+                .lastUpdated(p.getLastUpdated())
                 .build();
     }
 }

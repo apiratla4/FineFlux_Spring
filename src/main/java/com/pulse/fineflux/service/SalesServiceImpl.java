@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -20,58 +21,40 @@ public class SalesServiceImpl implements SalesService {
     private final SalesRepository salesRepository;
     private final GunInfoRepository gunInfoRepository;
     private final ProductRepository productRepository;
-    private final EmployeeRepository employeeRepository;
     private final ProfitLossService profitLossService;
-
+    private final InventoryRepository inventoryRepository;
+    private final InventoryLogRepository inventoryLogRepository;
+    private final CollectionsRepository collectionsRepository;
+    private final SaleHistoryRepository saleHistoryRepository;
 
     @Override
     public SalesResponseDTO createSale(SalesCreateDTO dto) {
         try {
-            log.info("Creating new Sale for orgId={}", dto.getOrganizationId());
+            LocalDateTime entryDateTime = dto.getDateTime() != null ? dto.getDateTime() : LocalDateTime.now();
 
-            // ✅ Validate employee
-            if (dto.getEmployeeId() == null || dto.getEmployeeId().isBlank()) {
-                throw new RuntimeException("Employee ID cannot be null or empty");
-            }
+            Product product = productRepository.findByOrganizationId(dto.getOrganizationId()).stream()
+                    .filter(p -> p.getProductName().trim().equalsIgnoreCase(dto.getProductName().trim()))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Product not found: " + dto.getProductName()));
 
-            employeeRepository.findById(dto.getEmployeeId())
-                    .orElseThrow(() -> new RuntimeException("Employee not found with ID: " + dto.getEmployeeId()));
-
-            LocalDateTime entryDateTime = dto.getDateTime() != null
-                    ? dto.getDateTime()
-                    : LocalDateTime.now();
-
-            // ✅ Fetch Product and Gun Info
             String gunName = gunInfoRepository.findByOrganizationId(dto.getOrganizationId())
-                    .stream()
-                    .findFirst()
-                    .map(GunInfo::getGuns)
-                    .orElse("N/A");
+                    .stream().findFirst().map(GunInfo::getGuns).orElse("N/A");
 
-            String productName = productRepository.findByOrganizationId(dto.getOrganizationId())
-                    .stream()
-                    .findFirst()
-                    .map(Product::getProductName)
-                    .orElse("N/A");
-
-            // ✅ Calculate Opening Stock
             double opening = dto.getOpeningStock() == 0f
-                    ? getLastClosing(productName, gunName)
+                    ? getLastClosing(product.getProductName(), gunName)
                     : dto.getOpeningStock();
-
             double closing = dto.getClosingStock();
             double testing = dto.getTestingTotal();
 
             BigDecimal saleVolume = BigDecimal.valueOf(closing - opening - testing);
             float amount = saleVolume.multiply(BigDecimal.valueOf(dto.getPrice())).floatValue();
 
-            // ✅ Save Sale Record
             Sales sale = Sales.builder()
                     .organizationId(dto.getOrganizationId())
                     .dateTime(entryDateTime)
-                    .productName(productName)
+                    .productName(product.getProductName())
                     .guns(gunName)
-                    .employeeId(dto.getEmployeeId())
+                    .empId(dto.getEmpId())
                     .openingStock(opening)
                     .closingStock(closing)
                     .testingTotal(testing)
@@ -82,42 +65,94 @@ public class SalesServiceImpl implements SalesService {
 
             Sales saved = salesRepository.save(sale);
 
-            // Trigger Profit/Loss recalculation automatically with orgId
+            // Find matching collection for this emp/org/day
+            LocalDateTime dayStart = entryDateTime.toLocalDate().atStartOfDay();
+            LocalDateTime dayEnd = dayStart.plusDays(1);
+            Collections bestCollection = collectionsRepository
+                    .findByOrganizationIdAndEmpIdAndDateTimeBetween(
+                            dto.getOrganizationId(), dto.getEmpId(), dayStart, dayEnd
+                    )
+                    .stream()
+                    .max(Comparator.comparing(Collections::getDateTime)) // latest in the day
+                    .orElse(null);
+
+            SaleHistory history = SaleHistory.builder()
+                    .organizationId(saved.getOrganizationId())
+                    .dateTime(saved.getDateTime())
+                    .productName(saved.getProductName())
+                    .guns(saved.getGuns())
+                    .empId(saved.getEmpId())
+                    .openingStock(saved.getOpeningStock())
+                    .closingStock(saved.getClosingStock())
+                    .testingTotal(saved.getTestingTotal())
+                    .salesInLiters(saved.getSalesInLiters())
+                    .price(saved.getPrice())
+                    .salesInRupees(saved.getSalesInRupees())
+                    .cashReceived(bestCollection != null ? bestCollection.getCashReceived() : 0)
+                    .phonePay(bestCollection != null ? bestCollection.getPhonePay() : 0)
+                    .creditCard(bestCollection != null ? bestCollection.getCreditCard() : 0)
+                    .shortCollections(bestCollection != null ? bestCollection.getShortCollections() : 0)
+                    .receivedTotal(bestCollection != null ? bestCollection.getReceivedTotal() : 0)
+                    .build();
+            saleHistoryRepository.save(history);
+
+            log.info("SaleHistory record created for empId={} and orgId={}", dto.getEmpId(), dto.getOrganizationId());
+
             profitLossService.calculateAndSaveProfitLoss(dto.getOrganizationId());
-            log.info("✅ Sale created successfully: {}", saved);
+            log.info("Sale created successfully: {}", saved);
 
-            // ✅ Update Product.currentLevel Automatically
-            productRepository.findByOrganizationId(dto.getOrganizationId()).stream()
-                    .filter(p -> p.getProductName().equalsIgnoreCase(productName))
-                    .findFirst()
-                    .ifPresent(product -> {
-                        BigDecimal current = product.getCurrentLevel() != null ? product.getCurrentLevel() : BigDecimal.ZERO;
-                        BigDecimal decreaseBy = BigDecimal.valueOf(saved.getSalesInLiters());
-                        BigDecimal updatedLevel = current.subtract(decreaseBy);
+            // PRODUCT: Decrease stock
+            BigDecimal currProduct = product.getCurrentLevel() != null ? product.getCurrentLevel() : BigDecimal.ZERO;
+            BigDecimal decreaseBy = BigDecimal.valueOf(saved.getSalesInLiters());
+            BigDecimal updatedProductLevel = currProduct.subtract(decreaseBy);
+            if (updatedProductLevel.compareTo(BigDecimal.ZERO) < 0) updatedProductLevel = BigDecimal.ZERO;
+            product.setCurrentLevel(updatedProductLevel);
+            productRepository.save(product);
+            log.info("Product '{}' currentLevel updated: {} → {} (decreased by {})",
+                    product.getProductName(), currProduct, updatedProductLevel, decreaseBy);
 
-                        // Prevent going below zero
-                        if (updatedLevel.compareTo(BigDecimal.ZERO) < 0) {
-                            updatedLevel = BigDecimal.ZERO;
-                        }
+            // INVENTORY and HISTORY LOG
+            List<Inventory> inventories = inventoryRepository.findAllByOrganizationIdAndProductId(dto.getOrganizationId(), product.getId());
+            inventories.stream()
+                    .max(Comparator.comparing(Inventory::getLastUpdated))
+                    .ifPresent(inventory -> {
+                        BigDecimal currInv = inventory.getCurrentLevel() != null ? inventory.getCurrentLevel() : BigDecimal.ZERO;
+                        BigDecimal updatedInv = currInv.subtract(decreaseBy);
+                        if (updatedInv.compareTo(BigDecimal.ZERO) < 0) updatedInv = BigDecimal.ZERO;
 
-                        product.setCurrentLevel(updatedLevel);
-                        productRepository.save(product);
+                        inventory.setCurrentLevel(updatedInv);
+                        inventoryRepository.save(inventory);
 
-                        log.info("🛢️ Product '{}' stock updated: {} → {} (decreased by {})",
-                                productName, current, updatedLevel, decreaseBy);
+                        InventoryLog logEntry = InventoryLog.builder()
+                                .inventoryId(inventory.getInventoryId())
+                                .organizationId(inventory.getOrganizationId())
+                                .productId(inventory.getProductId())
+                                .productName(inventory.getProductName())
+                                .totalCapacity(inventory.getTotalCapacity())
+                                .stockValue(inventory.getStockValue())
+                                .lastUpdated(java.sql.Timestamp.valueOf(entryDateTime))
+                                .empId(dto.getEmpId())
+                                .currentLevel(updatedInv)
+                                .metric(inventory.getMetric())
+                                .status(inventory.getStatus())
+                                .tankCapacity(inventory.getTankCapacity())
+                                .build();
+
+                        inventoryLogRepository.save(logEntry);
+
+                        log.info("Inventory '{}' currentLevel updated & logged: {} → {} (decreased by {})",
+                                inventory.getProductName(), currInv, updatedInv, decreaseBy);
                     });
 
             return toResponse(saved);
 
         } catch (Exception e) {
-            log.error("❌ Error creating sale for orgId={}", dto.getOrganizationId(), e);
+            log.error("❌ Error creating sale for orgId={} productName={}: {}", dto.getOrganizationId(), dto.getProductName(), e.getMessage(), e);
             throw new RuntimeException("Error creating sale: " + e.getMessage());
         }
     }
 
-    /**
-     * Fetch last closing stock for a given product and gun
-     */
+    // Last closing stock calculation (unchanged)
     public double getLastClosing(String productName, String gun) {
         try {
             log.info("Fetching last closing for product {} and gun {}", productName, gun);
@@ -149,7 +184,7 @@ public class SalesServiceImpl implements SalesService {
             return toResponse(updated);
 
         } catch (Exception e) {
-            log.error("Error updating sale id={}", id, e);
+            log.error("Error updating sale id={}: {}", id, e.getMessage(), e);
             throw new RuntimeException("Error updating sale: " + e.getMessage());
         }
     }
@@ -160,7 +195,7 @@ public class SalesServiceImpl implements SalesService {
             log.info("Deleting sale id={}", id);
             salesRepository.deleteById(id);
         } catch (Exception e) {
-            log.error("Error deleting sale id={}", id, e);
+            log.error("Error deleting sale id={}: {}", id, e.getMessage(), e);
             throw new RuntimeException("Error deleting sale: " + e.getMessage());
         }
     }
@@ -187,7 +222,7 @@ public class SalesServiceImpl implements SalesService {
                 .dateTime(sale.getDateTime())
                 .productName(sale.getProductName())
                 .guns(sale.getGuns())
-                .employeeId(sale.getEmployeeId())
+                .empId(sale.getEmpId())
                 .openingStock(sale.getOpeningStock())
                 .closingStock(sale.getClosingStock())
                 .testingTotal(sale.getTestingTotal())

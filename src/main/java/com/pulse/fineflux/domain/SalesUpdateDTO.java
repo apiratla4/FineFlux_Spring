@@ -1,6 +1,5 @@
 package com.pulse.fineflux.domain;
 
-
 import lombok.Data;
 
 @Data
@@ -11,5 +10,4 @@ public class SalesUpdateDTO {
     private double salesInLiters;
     private double price;
     private float salesInRupees;
-
 }
