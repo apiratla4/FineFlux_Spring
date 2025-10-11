@@ -18,4 +18,5 @@ public interface InventoryLogRepository extends MongoRepository<InventoryLog, St
     List<InventoryLog> findByOrganizationIdAndProductNameRegex(String orgId, String productNameRegex);
 
     void deleteById(String id); // Inherited from MongoRepository
+    InventoryLog findByInventoryId(String inventoryId);
 }

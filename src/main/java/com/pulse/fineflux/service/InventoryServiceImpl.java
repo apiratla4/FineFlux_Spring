@@ -127,12 +127,16 @@ public class InventoryServiceImpl implements InventoryService {
                 throw new IllegalStateException("Tank overflow! Too much stock");
             }
 
+            // Calculate the latest stock value (price * newTotal)
+            BigDecimal price = product.getPrice() != null ? BigDecimal.valueOf(product.getPrice()) : BigDecimal.ZERO;
+            BigDecimal computedStockValue = price.multiply(newTotal);
+
             Inventory inventory = Inventory.builder()
                     .organizationId(orgId)
                     .productId(productId)
                     .productName(product.getProductName())
                     .totalCapacity(dto.getTotalCapacity())
-                    .stockValue(dto.getStockValue())
+                    .stockValue(computedStockValue) // Correct: use computed value, not untrusted DTO
                     .lastUpdated(new Date())
                     .empId(dto.getEmpId())
                     .currentLevel(newTotal) // Store new cumulative total!
@@ -152,7 +156,7 @@ public class InventoryServiceImpl implements InventoryService {
                     .productId(savedRecord.getProductId())
                     .productName(savedRecord.getProductName())
                     .totalCapacity(savedRecord.getTotalCapacity())
-                    .stockValue(savedRecord.getStockValue())
+                    .stockValue(savedRecord.getStockValue()) // match with inventory
                     .lastUpdated(savedRecord.getLastUpdated())
                     .empId(savedRecord.getEmpId())
                     .currentLevel(savedRecord.getCurrentLevel())
@@ -164,7 +168,7 @@ public class InventoryServiceImpl implements InventoryService {
 
             profitLossService.calculateAndSaveProfitLoss(orgId);
 
-            log.debug("Inventory updated with new total={}, inventoryId={}", newTotal, savedRecord.getInventoryId());
+            log.debug("Inventory updated with new total={}, stockValue={}, inventoryId={}", newTotal, computedStockValue, savedRecord.getInventoryId());
             return inventoryRepository.findAllByOrganizationId(orgId).stream()
                     .map(this::mapToResponse)
                     .collect(Collectors.toList());
@@ -209,6 +213,21 @@ public class InventoryServiceImpl implements InventoryService {
             log.error("Error deleting inventory inventoryId={} orgId={}", inventoryId, orgId, e);
             throw e;
         }
+    }
+
+    @Override
+    public List<Inventory> getInventoriesByProductAndOrg(String orgId, String productId) {
+        return inventoryRepository.findAllByOrganizationIdAndProductId(orgId, productId);
+    }
+
+    @Override
+    public void saveInventory(Inventory inventory) {
+        inventoryRepository.save(inventory);
+    }
+
+    @Override
+    public InventoryLog getInventoryLogByInventoryId(String inventoryId) {
+        return inventoryLogRepository.findByInventoryId(inventoryId);
     }
 
     private InventoryResponseDTO mapToResponse(Inventory entity) {

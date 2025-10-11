@@ -1,6 +1,9 @@
 package com.pulse.fineflux.service;
 
 import com.pulse.fineflux.domain.*;
+import com.pulse.fineflux.entity.Inventory;
+import com.pulse.fineflux.entity.InventoryLog;
+
 import java.util.List;
 
 public interface InventoryService {
@@ -13,4 +16,8 @@ public interface InventoryService {
     InventoryResponseDTO getLatestInventory(String orgId, String productId);
 
     void deleteInventory(String orgId, String inventoryId);
+
+    List<Inventory> getInventoriesByProductAndOrg(String orgId, String productId);
+    void saveInventory(Inventory inventory);
+    InventoryLog getInventoryLogByInventoryId(String inventoryId);
 }
