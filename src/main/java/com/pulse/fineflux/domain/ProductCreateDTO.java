@@ -3,7 +3,8 @@ package com.pulse.fineflux.domain;
 import lombok.*;
 
 import java.math.BigDecimal;
-import java.util.Date;
+import java.time.LocalDateTime;
+
 
 @Data @NoArgsConstructor @AllArgsConstructor @Builder
 public class ProductCreateDTO {
@@ -16,6 +17,6 @@ public class ProductCreateDTO {
     private String supplier;
     private BigDecimal currentLevel;
     private String metric;
-    private Date lastUpdated;
+    private LocalDateTime lastUpdated;
     private String empId;
 }

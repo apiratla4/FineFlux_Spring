@@ -5,6 +5,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Date;
 
 @Data
@@ -23,7 +24,7 @@ public class InventoryLog {
     private String productName;
     private BigDecimal totalCapacity;
     private BigDecimal stockValue;
-    private Date lastUpdated;
+    private LocalDateTime lastUpdated;
     private String empId;
     private BigDecimal currentLevel;
     private String metric;

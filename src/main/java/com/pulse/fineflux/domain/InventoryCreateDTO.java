@@ -3,6 +3,7 @@ package com.pulse.fineflux.domain;
 import lombok.*;
 import jakarta.validation.constraints.NotBlank;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Date;
 
 @Data
@@ -23,5 +24,5 @@ public class InventoryCreateDTO {
     private String metric;
     private Boolean status;
     private BigDecimal tankCapacity;
-    private Date lastUpdated;
+    private LocalDateTime lastUpdated;
 }

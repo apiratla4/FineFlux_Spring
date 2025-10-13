@@ -2,6 +2,7 @@ package com.pulse.fineflux.domain;
 
 import lombok.*;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Date;
 
 @Data
@@ -15,7 +16,7 @@ public class InventoryResponseDTO {
     private String productName;
     private BigDecimal totalCapacity;
     private BigDecimal stockValue;
-    private Date lastUpdated;
+    private LocalDateTime lastUpdated;
     private String empId;
     private BigDecimal currentLevel;
     private String metric;

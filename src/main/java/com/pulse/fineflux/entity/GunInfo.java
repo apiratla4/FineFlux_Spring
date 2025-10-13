@@ -13,7 +13,7 @@ public class GunInfo {
 
     @Id
     private String id;
-
+    private String empId;
     private String organizationId;
     private String productName;    // <-- NEW FIELD
     private String guns;

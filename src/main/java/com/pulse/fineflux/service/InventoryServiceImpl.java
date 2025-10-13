@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -68,7 +69,7 @@ public class InventoryServiceImpl implements InventoryService {
                     .productName(product.getProductName())
                     .totalCapacity(totalCapacity)
                     .stockValue(stockValue)
-                    .lastUpdated(new Date())
+                    .lastUpdated(LocalDateTime.now())
                     .empId(dto.getEmpId())
                     .currentLevel(newCurrentLevel)
                     .metric(dto.getMetric())
@@ -118,7 +119,7 @@ public class InventoryServiceImpl implements InventoryService {
             Product product = productRepository.findByIdAndOrganizationId(productId, orgId)
                     .orElseThrow(() -> new RuntimeException("Product not found"));
 
-            // Only add increment
+            // Compute new cumulative level
             BigDecimal increment = dto.getCurrentLevel() != null ? dto.getCurrentLevel() : BigDecimal.ZERO;
             BigDecimal prevTotal = product.getCurrentLevel() != null ? product.getCurrentLevel() : BigDecimal.ZERO;
             BigDecimal newTotal = prevTotal.add(increment);
@@ -127,7 +128,7 @@ public class InventoryServiceImpl implements InventoryService {
                 throw new IllegalStateException("Tank overflow! Too much stock");
             }
 
-            // Calculate the latest stock value (price * newTotal)
+            // Calculate stock value as (price per unit × current level)
             BigDecimal price = product.getPrice() != null ? BigDecimal.valueOf(product.getPrice()) : BigDecimal.ZERO;
             BigDecimal computedStockValue = price.multiply(newTotal);
 
@@ -136,10 +137,10 @@ public class InventoryServiceImpl implements InventoryService {
                     .productId(productId)
                     .productName(product.getProductName())
                     .totalCapacity(dto.getTotalCapacity())
-                    .stockValue(computedStockValue) // Correct: use computed value, not untrusted DTO
-                    .lastUpdated(new Date())
+                    .stockValue(computedStockValue)
+                    .lastUpdated(LocalDateTime.now())
                     .empId(dto.getEmpId())
-                    .currentLevel(newTotal) // Store new cumulative total!
+                    .currentLevel(newTotal)
                     .metric(dto.getMetric())
                     .status(dto.getStatus())
                     .tankCapacity(dto.getTankCapacity())
@@ -147,8 +148,12 @@ public class InventoryServiceImpl implements InventoryService {
 
             Inventory savedRecord = inventoryRepository.save(inventory);
 
+            // Update product with new total
             product.setCurrentLevel(newTotal);
             productRepository.save(product);
+
+            // Calculate stock value for log (always matches latest inventory)
+            BigDecimal stockValueForLog = computedStockValue;
 
             InventoryLog historyLog = InventoryLog.builder()
                     .inventoryId(savedRecord.getInventoryId())
@@ -156,7 +161,7 @@ public class InventoryServiceImpl implements InventoryService {
                     .productId(savedRecord.getProductId())
                     .productName(savedRecord.getProductName())
                     .totalCapacity(savedRecord.getTotalCapacity())
-                    .stockValue(savedRecord.getStockValue()) // match with inventory
+                    .stockValue(stockValueForLog) // Always computed from price × level
                     .lastUpdated(savedRecord.getLastUpdated())
                     .empId(savedRecord.getEmpId())
                     .currentLevel(savedRecord.getCurrentLevel())
@@ -168,7 +173,8 @@ public class InventoryServiceImpl implements InventoryService {
 
             profitLossService.calculateAndSaveProfitLoss(orgId);
 
-            log.debug("Inventory updated with new total={}, stockValue={}, inventoryId={}", newTotal, computedStockValue, savedRecord.getInventoryId());
+            log.debug("Inventory updated: total={}, stockValue={}, inventoryId={}", newTotal, computedStockValue, savedRecord.getInventoryId());
+
             return inventoryRepository.findAllByOrganizationId(orgId).stream()
                     .map(this::mapToResponse)
                     .collect(Collectors.toList());
