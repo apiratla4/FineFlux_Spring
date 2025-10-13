@@ -124,6 +124,32 @@ public class ProductServiceImpl implements ProductService {
     /**
      * Update Product.
      */
+
+
+    /**
+     * Delete a product by ID for a specific organization.
+     */
+    @Override
+    public void deleteProduct(String orgId, String productId) {
+        try {
+            log.info("Deleting productId={} for orgId={}", productId, orgId);
+
+            Product product = productRepository.findByIdAndOrganizationId(productId, orgId)
+                    .orElseThrow(() -> {
+                        log.warn("Product not found for delete productId={} orgId={}", productId, orgId);
+                        return new RuntimeException("Product not found");
+                    });
+
+            productRepository.delete(product);
+            log.debug("Product deleted successfully productId={} orgId={}", productId, orgId);
+        } catch (RuntimeException e) {
+            throw e; // Already logged
+        } catch (Exception e) {
+            log.error("Error deleting product productId={} orgId={}", productId, orgId, e);
+            throw new RuntimeException("Failed to delete product", e);
+        }
+    }
+
     @Override
     public ProductResponseDTO updateProduct(String orgId, String productId, ProductUpdateDTO dto) {
         try {
@@ -148,18 +174,28 @@ public class ProductServiceImpl implements ProductService {
             Product updatedProduct = productRepository.save(product);
             log.debug("Product updated successfully productId={} orgId={}", updatedProduct.getId(), orgId);
 
-            // -- UPDATE Inventory entity's currentLevel field --
-            List<Inventory> inventories = inventoryService.getInventoriesByProductAndOrg(orgId, productId); // You need this method!
+            // -- UPDATE Inventory entity's currentLevel and stockValue fields --
+            List<Inventory> inventories = inventoryService.getInventoriesByProductAndOrg(orgId, productId);
             for (Inventory inv : inventories) {
                 inv.setCurrentLevel(updatedProduct.getCurrentLevel());
-                inventoryService.saveInventory(inv); // persist the change in Inventory entity
 
-                // -- UPDATE matching InventoryLog entity's currentLevel field --
-                InventoryLog inventoryLog = inventoryService.getInventoryLogByInventoryId(inv.getInventoryId());
-                if (inventoryLog != null) {
-                    inventoryLog.setCurrentLevel(updatedProduct.getCurrentLevel());
-                    inventoryLogRepository.save(inventoryLog);
-                    log.debug("InventoryLog updated for inventoryId={} with new currentLevel={}", inv.getInventoryId(), updatedProduct.getCurrentLevel());
+                BigDecimal currentLevel = inv.getCurrentLevel() != null ? inv.getCurrentLevel() : BigDecimal.ZERO;
+                BigDecimal price = updatedProduct.getPrice() != null ? BigDecimal.valueOf(updatedProduct.getPrice()) : BigDecimal.ZERO;
+                BigDecimal newStockValue = price.multiply(currentLevel);
+
+                inv.setStockValue(newStockValue);
+                inventoryService.saveInventory(inv);
+
+                // -- Update only the latest InventoryLog entity's currentLevel and stockValue
+                InventoryLog latestLog = inventoryLogRepository
+                        .findTopByInventoryIdOrderByLastUpdatedDesc(inv.getInventoryId());
+                if (latestLog != null) {
+                    latestLog.setCurrentLevel(updatedProduct.getCurrentLevel());
+                    latestLog.setStockValue(newStockValue);
+                    latestLog.setLastUpdated(LocalDateTime.now());
+                    inventoryLogRepository.save(latestLog);
+                    log.debug("Latest InventoryLog updated for inventoryId={} with new currentLevel={} and new stockValue={}",
+                            inv.getInventoryId(), updatedProduct.getCurrentLevel(), newStockValue);
                 }
             }
 
@@ -169,30 +205,6 @@ public class ProductServiceImpl implements ProductService {
         } catch (Exception e) {
             log.error("Error updating product productId={} orgId={}", productId, orgId, e);
             throw new RuntimeException("Failed to update product", e);
-        }
-    }
-
-    /**
-     * Delete a product by ID for a specific organization.
-     */
-    @Override
-    public void deleteProduct(String orgId, String productId) {
-        try {
-            log.info("Deleting productId={} for orgId={}", productId, orgId);
-
-            Product product = productRepository.findByIdAndOrganizationId(productId, orgId)
-                    .orElseThrow(() -> {
-                        log.warn("Product not found for delete productId={} orgId={}", productId, orgId);
-                        return new RuntimeException("Product not found");
-                    });
-
-            productRepository.delete(product);
-            log.debug("Product deleted successfully productId={} orgId={}", productId, orgId);
-        } catch (RuntimeException e) {
-            throw e; // Already logged
-        } catch (Exception e) {
-            log.error("Error deleting product productId={} orgId={}", productId, orgId, e);
-            throw new RuntimeException("Failed to delete product", e);
         }
     }
 
