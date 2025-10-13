@@ -1,10 +1,8 @@
 package com.pulse.fineflux.service;
 
-
 import com.pulse.fineflux.domain.*;
 import com.pulse.fineflux.entity.GunInfo;
 import com.pulse.fineflux.repository.GunInfoRepository;
-import com.pulse.fineflux.service.GunInfoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,17 +21,19 @@ public class GunInfoServiceImpl implements GunInfoService {
     public GunInfoResponseDTO createGunInfo(GunInfoCreateDTO dto) {
         GunInfo gunInfo = GunInfo.builder()
                 .organizationId(dto.getOrganizationId())
+                .productName(dto.getProductName())  // Accept productName as part of creation!
                 .guns(dto.getGuns())
                 .serialNumber(dto.getSerialNumber())
                 .currentReading(dto.getCurrentReading())
                 .build();
 
         gunInfoRepository.save(gunInfo);
-        log.info("Created GunInfo for organizationId={}", dto.getOrganizationId());
+        log.info("Created GunInfo for organizationId={} productName={}", dto.getOrganizationId(), dto.getProductName());
 
         return GunInfoResponseDTO.builder()
                 .id(gunInfo.getId())
                 .organizationId(gunInfo.getOrganizationId())
+                .productName(gunInfo.getProductName())
                 .guns(gunInfo.getGuns())
                 .serialNumber(gunInfo.getSerialNumber())
                 .currentReading(gunInfo.getCurrentReading())
@@ -46,20 +46,21 @@ public class GunInfoServiceImpl implements GunInfoService {
                 .orElseThrow(() -> new RuntimeException("GunInfo not found with id: " + id));
 
         gunInfo.setOrganizationId(dto.getOrganizationId());
+        gunInfo.setProductName(dto.getProductName());     // Update productName
         gunInfo.setGuns(dto.getGuns());
         gunInfo.setSerialNumber(dto.getSerialNumber());
         gunInfo.setCurrentReading(dto.getCurrentReading());
 
         gunInfoRepository.save(gunInfo);
-        log.info("Updated GunInfo ID={} for organizationId={}", id, dto.getOrganizationId());
+        log.info("Updated GunInfo ID={} for organizationId={} productName={}", id, dto.getOrganizationId(), dto.getProductName());
 
         return GunInfoResponseDTO.builder()
                 .id(gunInfo.getId())
                 .organizationId(gunInfo.getOrganizationId())
+                .productName(gunInfo.getProductName())
                 .guns(gunInfo.getGuns())
                 .serialNumber(gunInfo.getSerialNumber())
                 .currentReading(gunInfo.getCurrentReading())
-
                 .build();
     }
 
@@ -77,6 +78,7 @@ public class GunInfoServiceImpl implements GunInfoService {
         return GunInfoResponseDTO.builder()
                 .id(gunInfo.getId())
                 .organizationId(gunInfo.getOrganizationId())
+                .productName(gunInfo.getProductName())
                 .guns(gunInfo.getGuns())
                 .serialNumber(gunInfo.getSerialNumber())
                 .currentReading(gunInfo.getCurrentReading())
@@ -91,10 +93,23 @@ public class GunInfoServiceImpl implements GunInfoService {
                 .map(g -> GunInfoResponseDTO.builder()
                         .id(g.getId())
                         .organizationId(g.getOrganizationId())
+                        .productName(g.getProductName())
                         .guns(g.getGuns())
                         .serialNumber(g.getSerialNumber())
                         .currentReading(g.getCurrentReading())
                         .build())
                 .collect(Collectors.toList());
+    }
+
+    // Sync method for use from SalesServiceImpl - keeps gun info up to date with sales
+    public void syncGunInfoWithSale(String orgId, String gunName, String productName, double closingStock) {
+        gunInfoRepository.findByOrganizationId(orgId).stream()
+                .filter(g -> g.getGuns().trim().equalsIgnoreCase(gunName.trim()))
+                .forEach(gunInfo -> {
+                    gunInfo.setProductName(productName);
+                    gunInfo.setCurrentReading(closingStock);
+                    gunInfoRepository.save(gunInfo);
+                    log.info("GunInfo '{}' for product '{}' currentReading updated to {}", gunInfo.getGuns(), productName, closingStock);
+                });
     }
 }

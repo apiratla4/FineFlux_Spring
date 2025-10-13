@@ -20,5 +20,6 @@ public class CollectionsResponseDTO {
     private double shortCollections;
     private double expectedTotal;
     private double receivedTotal;
-
+    private String productName;   // fetched from Product
+    private String guns;
 }

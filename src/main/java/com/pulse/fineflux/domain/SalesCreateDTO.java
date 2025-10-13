@@ -15,4 +15,5 @@ public class SalesCreateDTO {
     private double price;
     private float salesInRupees;
     private LocalDateTime dateTime;
+    private String guns;
 }

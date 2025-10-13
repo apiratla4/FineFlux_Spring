@@ -13,4 +13,5 @@ public class GunInfoCreateDTO {
     private String guns;
     private String serialNumber;
     private Double currentReading;
+    private String productName;
 }
