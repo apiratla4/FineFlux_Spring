@@ -25,6 +25,7 @@ public class GunInfoServiceImpl implements GunInfoService {
                 .guns(dto.getGuns())
                 .serialNumber(dto.getSerialNumber())
                 .currentReading(dto.getCurrentReading())
+                .empId(dto.getEmpId())
                 .build();
 
         gunInfoRepository.save(gunInfo);
@@ -37,6 +38,7 @@ public class GunInfoServiceImpl implements GunInfoService {
                 .guns(gunInfo.getGuns())
                 .serialNumber(gunInfo.getSerialNumber())
                 .currentReading(gunInfo.getCurrentReading())
+                .empId(dto.getEmpId())
                 .build();
     }
 
@@ -50,7 +52,7 @@ public class GunInfoServiceImpl implements GunInfoService {
         gunInfo.setGuns(dto.getGuns());
         gunInfo.setSerialNumber(dto.getSerialNumber());
         gunInfo.setCurrentReading(dto.getCurrentReading());
-
+        gunInfo.setId(dto.getEmpId());
         gunInfoRepository.save(gunInfo);
         log.info("Updated GunInfo ID={} for organizationId={} productName={}", id, dto.getOrganizationId(), dto.getProductName());
 
@@ -61,6 +63,7 @@ public class GunInfoServiceImpl implements GunInfoService {
                 .guns(gunInfo.getGuns())
                 .serialNumber(gunInfo.getSerialNumber())
                 .currentReading(gunInfo.getCurrentReading())
+                .empId(gunInfo.getEmpId())
                 .build();
     }
 
@@ -82,6 +85,7 @@ public class GunInfoServiceImpl implements GunInfoService {
                 .guns(gunInfo.getGuns())
                 .serialNumber(gunInfo.getSerialNumber())
                 .currentReading(gunInfo.getCurrentReading())
+                .empId(gunInfo.getEmpId())
                 .build();
     }
 
@@ -97,6 +101,7 @@ public class GunInfoServiceImpl implements GunInfoService {
                         .guns(g.getGuns())
                         .serialNumber(g.getSerialNumber())
                         .currentReading(g.getCurrentReading())
+                        .empId(g.getEmpId())
                         .build())
                 .collect(Collectors.toList());
     }

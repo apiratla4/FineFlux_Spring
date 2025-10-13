@@ -3,6 +3,7 @@ import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Date;
 
 
@@ -22,7 +23,7 @@ public class Inventory {
     private String productName;
     private BigDecimal totalCapacity;
     private BigDecimal stockValue;
-    private Date lastUpdated;
+    private LocalDateTime lastUpdated;
     private BigDecimal currentLevel;
     private String metric;
     private Boolean status;

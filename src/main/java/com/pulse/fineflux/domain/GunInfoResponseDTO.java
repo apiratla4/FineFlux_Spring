@@ -15,4 +15,5 @@ public class GunInfoResponseDTO {
     private String serialNumber;
     private Double currentReading;
     private String productName;
+    private String empId;
 }

@@ -7,6 +7,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Date;
 
 @Data
@@ -23,7 +24,7 @@ public class Product {
 
     @NotBlank
     private String productName;
-    private Date lastUpdated;
+    private LocalDateTime lastUpdated;
     private Double price;
     private Boolean status;
     private BigDecimal tankCapacity;

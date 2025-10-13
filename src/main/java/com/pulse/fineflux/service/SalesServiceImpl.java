@@ -129,7 +129,7 @@ public class SalesServiceImpl implements SalesService {
                                 .productName(inventory.getProductName())
                                 .totalCapacity(inventory.getTotalCapacity())
                                 .stockValue(inventory.getStockValue())
-                                .lastUpdated(java.sql.Timestamp.valueOf(entryDateTime))
+                                .lastUpdated(LocalDateTime.now())
                                 .empId(dto.getEmpId())
                                 .currentLevel(updatedInv)
                                 .metric(inventory.getMetric())

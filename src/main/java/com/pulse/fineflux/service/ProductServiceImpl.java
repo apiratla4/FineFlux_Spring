@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.List;
 
@@ -88,7 +89,7 @@ public class ProductServiceImpl implements ProductService {
                     .supplier(dto.getSupplier())
                     .currentLevel(dto.getCurrentLevel() != null ? dto.getCurrentLevel() : BigDecimal.ZERO)
                     .metric(dto.getMetric())
-                    .lastUpdated(new Date())
+                    .lastUpdated(LocalDateTime.now())
                     .build();
 
             Product savedProduct = productRepository.save(product);
@@ -101,7 +102,7 @@ public class ProductServiceImpl implements ProductService {
                     .productName(savedProduct.getProductName())
                     .totalCapacity(savedProduct.getTankCapacity())
                     .stockValue(savedProduct.getPrice() != null ? BigDecimal.valueOf(savedProduct.getPrice()) : BigDecimal.ZERO)
-                    .lastUpdated(new Date())
+                    .lastUpdated(LocalDateTime.now())
                     .currentLevel(savedProduct.getCurrentLevel())
                     .metric(savedProduct.getMetric())
                     .status(savedProduct.getStatus())
@@ -142,7 +143,7 @@ public class ProductServiceImpl implements ProductService {
             product.setSupplier(dto.getSupplier());
             product.setCurrentLevel(dto.getCurrentLevel());
             product.setMetric(dto.getMetric());
-            product.setLastUpdated(new Date());
+            product.setLastUpdated(LocalDateTime.now());
 
             Product updatedProduct = productRepository.save(product);
             log.debug("Product updated successfully productId={} orgId={}", updatedProduct.getId(), orgId);
