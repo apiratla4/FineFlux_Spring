@@ -10,11 +10,11 @@ import java.util.Optional;
 
 public interface EmployeeRepository extends MongoRepository<Employee, String> {
     Optional<Employee> findByUsername(String username);
-    Optional<Employee> findByEmailId(String emailId);
-    boolean existsByUsername(String username);
+
     boolean existsByEmailId(String emailId);
 
     boolean existsByEmpId(String empId);
+    Employee findByEmpIdAndOrganizationId(String empId, String organizationId);
 
     // Org-scoped
     Page<Employee> findAllByOrganizationId(String organizationId, Pageable pageable);

@@ -13,4 +13,5 @@ public class GunInfoUpdateDTO {
     private String serialNumber;
     private Double currentReading;
     private String organizationId;
+    private String productName;
 }

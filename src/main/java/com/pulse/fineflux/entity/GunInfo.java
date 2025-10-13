@@ -15,6 +15,7 @@ public class GunInfo {
     private String id;
 
     private String organizationId;
+    private String productName;    // <-- NEW FIELD
     private String guns;
     private String serialNumber;
     private double currentReading;

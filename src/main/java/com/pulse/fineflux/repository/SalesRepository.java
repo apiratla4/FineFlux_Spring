@@ -13,9 +13,14 @@ public interface SalesRepository extends MongoRepository<Sales, String> {
     List<Sales> findByOrganizationId(String organizationId);
     Sales findTopByProductNameAndGunsOrderByDateTimeDesc(String productName, String guns);
 
+    List<Sales> findByOrganizationIdAndEmpIdAndDateTimeBetween(
+            String organizationId,
+            String empId,
+            LocalDateTime startDateTime,
+            LocalDateTime endDateTime
+    );
+    List<Sales> findByOrganizationIdAndEmpIdAndProductNameAndGunsAndDateTime(
+            String organizationId, String empId, String productName, String guns, LocalDateTime dateTime);
 
-
-    // ✅ Add this method for organizationId + dateTime filtering
-    List<Sales> findByOrganizationIdAndDateTime(String organizationId, LocalDateTime dateTime);
 
 }

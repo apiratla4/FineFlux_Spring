@@ -17,4 +17,6 @@ public class CollectionsCreateDTO {
     private double phonePay;
     private double creditCard;
     private double shortCollections;
+    private String productName;   // fetched from Product
+    private String guns;
 }

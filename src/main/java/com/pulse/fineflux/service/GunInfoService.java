@@ -1,10 +1,8 @@
 package com.pulse.fineflux.service;
 
-
 import com.pulse.fineflux.domain.GunInfoCreateDTO;
 import com.pulse.fineflux.domain.GunInfoResponseDTO;
 import com.pulse.fineflux.domain.GunInfoUpdateDTO;
-
 import java.util.List;
 
 public interface GunInfoService {
@@ -17,4 +15,6 @@ public interface GunInfoService {
     GunInfoResponseDTO getGunInfoById(String id);
 
     List<GunInfoResponseDTO> getAllGunInfo(String organizationId);
+
+
 }

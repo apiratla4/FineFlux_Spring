@@ -24,7 +24,8 @@ public class Collections {
     private double phonePay;
     private double creditCard;
     private double shortCollections;
-
+    private String productName;
+    private String guns;
     private double expectedTotal;
     private double receivedTotal;
 }
