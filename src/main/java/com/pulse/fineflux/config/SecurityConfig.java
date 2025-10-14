@@ -32,7 +32,7 @@ public class SecurityConfig {
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
-        cfg.setAllowedOrigins(List.of("http://localhost:8081")); // frontend origin
+        cfg.setAllowedOrigins(List.of("http://localhost:8081","https://fineflux.com")); // frontend origin
         cfg.setAllowedMethods(List.of("GET","POST","PUT","DELETE","PATCH","OPTIONS"));
         cfg.setAllowedHeaders(List.of("Content-Type","Authorization","X-Requested-With","Accept","Origin"));
         cfg.setExposedHeaders(List.of("Authorization","Location"));
