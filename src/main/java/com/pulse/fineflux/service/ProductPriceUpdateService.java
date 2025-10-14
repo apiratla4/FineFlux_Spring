@@ -9,9 +9,12 @@ import com.pulse.fineflux.repository.InventoryLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+// If you have spring-tx on classpath, you may annotate @Transactional for atomicity
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -22,51 +25,66 @@ public class ProductPriceUpdateService {
     private final InventoryRepository inventoryRepo;
     private final InventoryLogRepository logRepo;
 
-    /**
-     * Updates Product price, cascades changes to Inventory and InventoryLog.
-     * @param productId The product identifier.
-     * @param newPrice  The new price to set.
-     * @param empId     The employee performing the update.
-     */
     public void updateProductPrice(String productId, double newPrice, String empId) {
         try {
-            // 1. Update Product price
+            // 1) Update Product price (+ compute and update product stockValue)
             Product product = productRepo.findById(productId)
                     .orElseThrow(() -> new RuntimeException("Product not found: " + productId));
+
             product.setPrice(newPrice);
             product.setLastUpdated(LocalDateTime.now());
+
+            // NEW: compute product-level stockValue = product.currentLevel * newPrice
+            BigDecimal prodCurrentLevel = defaultZero(product.getCurrentLevel());
+            BigDecimal productStockValue = prodCurrentLevel.multiply(BigDecimal.valueOf(newPrice));
+
+            // If your Product entity already has a stockValue field, set it here.
+            // If not present, remove the next line or add the field in your entity.
+
             productRepo.save(product);
 
-            // 2. Update Inventory stockValue (stockValue = currentLevel * newPrice)
-            Inventory inventory = inventoryRepo.findByProductId(productId);
-            if (inventory == null) throw new RuntimeException("Inventory not found for productId: " + productId);
+            // 2) Update all inventories for this product (stockValue = currentLevel * newPrice)
+            List<Inventory> inventories = inventoryRepo.findByProductId(productId);
+            if (inventories == null || inventories.isEmpty()) {
+                throw new RuntimeException("No inventory found for productId: " + productId);
+            }
 
-            BigDecimal stockValue = inventory.getCurrentLevel().multiply(BigDecimal.valueOf(newPrice));
-            inventory.setStockValue(stockValue);
-            inventory.setLastUpdated(LocalDateTime.now());
-            inventoryRepo.save(inventory);
+            for (Inventory inventory : inventories) {
+                BigDecimal invCurrentLevel = defaultZero(inventory.getCurrentLevel());
+                BigDecimal invStockValue = invCurrentLevel.multiply(BigDecimal.valueOf(newPrice));
 
-            // 3. Log the price & stock value change in InventoryLog
-            InventoryLog invLog = InventoryLog.builder()
-                    .inventoryId(inventory.getInventoryId())
-                    .organizationId(inventory.getOrganizationId())
-                    .productId(productId)
-                    .productName(product.getProductName())
-                    .totalCapacity(inventory.getTotalCapacity())
-                    .stockValue(stockValue)
-                    .currentLevel(inventory.getCurrentLevel())
-                    .metric(inventory.getMetric())
-                    .tankCapacity(inventory.getTankCapacity())
-                    .status(inventory.getStatus())
-                    .lastUpdated(LocalDateTime.now())
-                    .empId(empId)
-                    .build();
-            logRepo.save(invLog);
+                inventory.setStockValue(invStockValue);
+                inventory.setLastUpdated(LocalDateTime.now());
+                inventoryRepo.save(inventory);
 
-            log.info("Product price updated: productId={}, newPrice={}, empId={}", productId, newPrice, empId);
+                // 3) Log the change
+                InventoryLog invLog = InventoryLog.builder()
+                        .inventoryId(inventory.getInventoryId())
+                        .organizationId(inventory.getOrganizationId())
+                        .productId(productId)
+                        .productName(product.getProductName())
+                        .totalCapacity(inventory.getTotalCapacity())
+                        .stockValue(invStockValue)
+                        .currentLevel(inventory.getCurrentLevel())
+                        .metric(inventory.getMetric())
+                        .tankCapacity(inventory.getTankCapacity())
+                        .status(inventory.getStatus())
+                        .lastUpdated(LocalDateTime.now())
+                        .empId(empId)
+                        .build();
+                logRepo.save(invLog);
+            }
+
+            log.info("Product price updated (and product stockValue computed) across {} inventory records: productId={}, newPrice={}, empId={}",
+                    inventories.size(), productId, newPrice, empId);
+
         } catch (Exception e) {
             log.error("Failed to update product price for productId={}, empId={}. Error: {}", productId, empId, e.getMessage(), e);
             throw new RuntimeException("Failed to update product and inventory price", e);
         }
+    }
+
+    private static BigDecimal defaultZero(BigDecimal v) {
+        return Objects.requireNonNullElse(v, BigDecimal.ZERO);
     }
 }
