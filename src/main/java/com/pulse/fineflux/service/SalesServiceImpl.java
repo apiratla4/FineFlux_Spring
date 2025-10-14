@@ -9,8 +9,10 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -60,10 +62,10 @@ public class SalesServiceImpl implements SalesService {
             double testing = dto.getTestingTotal();
 
             double liters = closing - opening - testing;
-            if (liters < 0) liters = 0.0; // never negative
+            if (liters < 0) liters = 0.0;
 
             float amount = (float) (liters * dto.getPrice());
-            if (amount < 0f) amount = 0f; // never negative
+            if (amount < 0f) amount = 0f;
 
             Sales sale = Sales.builder()
                     .organizationId(dto.getOrganizationId())
@@ -107,8 +109,6 @@ public class SalesServiceImpl implements SalesService {
             if (updatedProductLevel.compareTo(BigDecimal.ZERO) < 0) updatedProductLevel = BigDecimal.ZERO;
             product.setCurrentLevel(updatedProductLevel);
             productRepository.save(product);
-            log.info("Product '{}' currentLevel updated: {} → {} (decreased by {})",
-                    product.getProductName(), currProduct, updatedProductLevel, decreaseBy);
 
             // Update inventory and log
             List<Inventory> inventories = inventoryRepository.findAllByOrganizationIdAndProductId(dto.getOrganizationId(), product.getId());
@@ -119,7 +119,11 @@ public class SalesServiceImpl implements SalesService {
                         BigDecimal updatedInv = currInv.subtract(decreaseBy);
                         if (updatedInv.compareTo(BigDecimal.ZERO) < 0) updatedInv = BigDecimal.ZERO;
 
+                        BigDecimal priceVal = product.getPrice() != null ? BigDecimal.valueOf(product.getPrice()) : BigDecimal.ZERO;
+                        BigDecimal updatedStockValue = priceVal.multiply(updatedInv);
+
                         inventory.setCurrentLevel(updatedInv);
+                        inventory.setStockValue(updatedStockValue); // Ensure latest
                         inventoryRepository.save(inventory);
 
                         InventoryLog logEntry = InventoryLog.builder()
@@ -128,7 +132,7 @@ public class SalesServiceImpl implements SalesService {
                                 .productId(inventory.getProductId())
                                 .productName(inventory.getProductName())
                                 .totalCapacity(inventory.getTotalCapacity())
-                                .stockValue(inventory.getStockValue())
+                                .stockValue(updatedStockValue)
                                 .lastUpdated(LocalDateTime.now())
                                 .empId(dto.getEmpId())
                                 .currentLevel(updatedInv)
@@ -139,8 +143,8 @@ public class SalesServiceImpl implements SalesService {
 
                         inventoryLogRepository.save(logEntry);
 
-                        log.info("Inventory '{}' currentLevel updated & logged: {} → {} (decreased by {})",
-                                inventory.getProductName(), currInv, updatedInv, decreaseBy);
+                        log.info("Inventory '{}' currentLevel updated & logged: {} → {} (decreased by {}), stockValue={}",
+                                inventory.getProductName(), currInv, updatedInv, decreaseBy, updatedStockValue);
                     });
 
             return toResponse(saved);
@@ -151,16 +155,21 @@ public class SalesServiceImpl implements SalesService {
         }
     }
 
-    public double getLastClosing(String productName, String gun) {
-        try {
-            log.info("Fetching last closing for product {} and gun {}", productName, gun);
-            Sales last = salesRepository.findTopByProductNameAndGunsOrderByDateTimeDesc(productName, gun);
-            double closing = (last != null) ? last.getClosingStock() : 0f;
-            log.info("Last closing found: {}", closing);
-            return closing;
-        } catch (Exception e) {
-            log.error("Error fetching last closing: {}", e.getMessage(), e);
-            return 0f;
+    // Helper: Get the latest stock value and current level for a product & org
+    public Optional<LatestInventoryStatus> getLatestInventoryForProduct(String organizationId, String productId) {
+        return inventoryRepository.findAllByOrganizationIdAndProductId(organizationId, productId)
+                .stream()
+                .max(Comparator.comparing(Inventory::getLastUpdated))
+                .map(inv -> new LatestInventoryStatus(inv.getStockValue(), inv.getCurrentLevel()));
+    }
+
+    // Helper inner class
+    public static class LatestInventoryStatus {
+        public final BigDecimal stockValue;
+        public final BigDecimal currentLevel;
+        public LatestInventoryStatus(BigDecimal stockValue, BigDecimal currentLevel) {
+            this.stockValue = stockValue;
+            this.currentLevel = currentLevel;
         }
     }
 
@@ -170,7 +179,6 @@ public class SalesServiceImpl implements SalesService {
             Sales sale = salesRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Sale not found"));
 
-            // Do not allow update of opening stock directly (should remain from historical GunInfo)
             sale.setClosingStock(dto.getClosingStock());
             sale.setTestingTotal(dto.getTestingTotal());
             sale.setSalesInLiters(dto.getSalesInLiters());
@@ -184,17 +192,6 @@ public class SalesServiceImpl implements SalesService {
         } catch (Exception e) {
             log.error("Error updating sale id={}: {}", id, e.getMessage(), e);
             throw new RuntimeException("Error updating sale: " + e.getMessage());
-        }
-    }
-
-    @Override
-    public void deleteSale(String id) {
-        try {
-            log.info("Deleting sale id={}", id);
-            salesRepository.deleteById(id);
-        } catch (Exception e) {
-            log.error("Error deleting sale id={}: {}", id, e.getMessage(), e);
-            throw new RuntimeException("Error deleting sale: " + e.getMessage());
         }
     }
 
@@ -213,11 +210,32 @@ public class SalesServiceImpl implements SalesService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public void deleteSale(String id) {
+        try {
+            log.info("Deleting sale id={}", id);
+            salesRepository.deleteById(id);
+        } catch (Exception e) {
+            log.error("Error deleting sale id={}: {}", id, e.getMessage(), e);
+            throw new RuntimeException("Error deleting sale: " + e.getMessage());
+        }
+    }
+
     private SalesResponseDTO toResponse(Sales sale) {
+        // Convert UTC stored time to IST for frontend
+        LocalDateTime utcTime = sale.getDateTime();
+        LocalDateTime istTime;
+        if (utcTime != null) {
+            istTime = utcTime.atZone(ZoneId.of("UTC"))
+                    .withZoneSameInstant(ZoneId.of("Asia/Kolkata"))
+                    .toLocalDateTime();
+        } else {
+            istTime = null;
+        }
         return SalesResponseDTO.builder()
                 .id(sale.getId())
                 .organizationId(sale.getOrganizationId())
-                .dateTime(sale.getDateTime())
+                .dateTime(istTime)
                 .productName(sale.getProductName())
                 .guns(sale.getGuns())
                 .empId(sale.getEmpId())

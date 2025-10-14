@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -69,7 +70,7 @@ public class InventoryServiceImpl implements InventoryService {
                     .productName(product.getProductName())
                     .totalCapacity(totalCapacity)
                     .stockValue(stockValue)
-                    .lastUpdated(LocalDateTime.now())
+                    .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
                     .empId(dto.getEmpId())
                     .currentLevel(newCurrentLevel)
                     .metric(dto.getMetric())
@@ -138,7 +139,7 @@ public class InventoryServiceImpl implements InventoryService {
                     .productName(product.getProductName())
                     .totalCapacity(dto.getTotalCapacity())
                     .stockValue(computedStockValue)
-                    .lastUpdated(LocalDateTime.now())
+                    .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
                     .empId(dto.getEmpId())
                     .currentLevel(newTotal)
                     .metric(dto.getMetric())
