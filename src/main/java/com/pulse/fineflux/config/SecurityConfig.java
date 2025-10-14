@@ -4,7 +4,6 @@ package com.pulse.fineflux.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
@@ -22,9 +21,9 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // preflight
-                        .requestMatchers("/api/auth/login").permitAll()         // public login
-                        .anyRequest().permitAll()                               // open during dev
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // Preflight
+                        .requestMatchers("/api/auth/login").permitAll()         // Public login
+                        .anyRequest().permitAll()                               // Open during dev -- tighten for prod!
                 )
                 .build();
     }
@@ -32,7 +31,12 @@ public class SecurityConfig {
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
-        cfg.setAllowedOrigins(List.of("http://localhost:8081")); // frontend origin
+        // Use allowedOriginPatterns for wildcard/subdomain and credentials support (Spring 2.4+)
+        cfg.setAllowedOriginPatterns(List.of(
+                "http://localhost:8081",
+                "https://fineflux.com",
+                "https://*.fineflux.com"
+        ));
         cfg.setAllowedMethods(List.of("GET","POST","PUT","DELETE","PATCH","OPTIONS"));
         cfg.setAllowedHeaders(List.of("Content-Type","Authorization","X-Requested-With","Accept","Origin"));
         cfg.setExposedHeaders(List.of("Authorization","Location"));
