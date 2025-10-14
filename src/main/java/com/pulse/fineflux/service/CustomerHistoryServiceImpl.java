@@ -1,6 +1,5 @@
 // src/main/java/com/pulse/fineflux/service/impl/CustomerHistoryServiceImpl.java
-package com.pulse.fineflux.service.impl;
-
+package com.pulse.fineflux.service;
 import com.pulse.fineflux.domain.CustomerHistoryCreateRequest;
 import com.pulse.fineflux.domain.CustomerHistoryResponse;
 import com.pulse.fineflux.entity.Customer;

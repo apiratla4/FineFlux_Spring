@@ -15,7 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Date;
+import java.time.ZoneId;
 import java.util.List;
 
 @Service
@@ -89,7 +89,7 @@ public class ProductServiceImpl implements ProductService {
                     .supplier(dto.getSupplier())
                     .currentLevel(dto.getCurrentLevel() != null ? dto.getCurrentLevel() : BigDecimal.ZERO)
                     .metric(dto.getMetric())
-                    .lastUpdated(LocalDateTime.now())
+                    .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
                     .build();
 
             Product savedProduct = productRepository.save(product);
@@ -102,7 +102,7 @@ public class ProductServiceImpl implements ProductService {
                     .productName(savedProduct.getProductName())
                     .totalCapacity(savedProduct.getTankCapacity())
                     .stockValue(savedProduct.getPrice() != null ? BigDecimal.valueOf(savedProduct.getPrice()) : BigDecimal.ZERO)
-                    .lastUpdated(LocalDateTime.now())
+                    .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
                     .currentLevel(savedProduct.getCurrentLevel())
                     .metric(savedProduct.getMetric())
                     .status(savedProduct.getStatus())
@@ -169,7 +169,7 @@ public class ProductServiceImpl implements ProductService {
             product.setSupplier(dto.getSupplier());
             product.setCurrentLevel(dto.getCurrentLevel());
             product.setMetric(dto.getMetric());
-            product.setLastUpdated(LocalDateTime.now());
+            product.setLastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")));
 
             Product updatedProduct = productRepository.save(product);
             log.debug("Product updated successfully productId={} orgId={}", updatedProduct.getId(), orgId);
@@ -192,7 +192,7 @@ public class ProductServiceImpl implements ProductService {
                 if (latestLog != null) {
                     latestLog.setCurrentLevel(updatedProduct.getCurrentLevel());
                     latestLog.setStockValue(newStockValue);
-                    latestLog.setLastUpdated(LocalDateTime.now());
+                    latestLog.setLastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")));
                     inventoryLogRepository.save(latestLog);
                     log.debug("Latest InventoryLog updated for inventoryId={} with new currentLevel={} and new stockValue={}",
                             inv.getInventoryId(), updatedProduct.getCurrentLevel(), newStockValue);
