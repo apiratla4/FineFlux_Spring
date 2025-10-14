@@ -1,5 +1,12 @@
-FROM openjdk:17-jdk-slim
+FROM maven:3.9.5-eclipse-temurin-17 AS builder
 WORKDIR /app
-COPY target/*.jar app.jar
+COPY pom.xml .
+RUN mvn dependency:go-offline # Cache dependencies first
+COPY src/ ./src/
+RUN mvn clean package -DskipTests
+
+FROM openjdk:17-jre-slim
+WORKDIR /app
+COPY --from=builder /app/target/*.jar app.jar
 EXPOSE 8080
 ENTRYPOINT ["java","-jar","app.jar"]
