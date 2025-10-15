@@ -12,5 +12,7 @@ public interface InventoryRepository extends MongoRepository<Inventory, String> 
     // Fetch a single latest inventory entry for an org/product via timestamp
     Inventory findTopByOrganizationIdAndProductIdOrderByLastUpdatedDesc(String orgId, String productId);
 
+    List<Inventory> findByProductId(String productId);
+
 
 }
