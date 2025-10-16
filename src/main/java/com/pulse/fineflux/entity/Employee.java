@@ -57,6 +57,12 @@ public class Employee {
     @NotBlank
     private String passwordHash;
 
+    // NEW FIELDS
+    private String gender; // e.g., Male, Female, Other, Prefer not to say
+
+    @Min(0)
+    private Double salary; // Employee salary
+
     @CreatedDate
     private Instant joinedDate;
 

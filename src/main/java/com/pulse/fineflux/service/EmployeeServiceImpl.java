@@ -61,6 +61,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         e.setEmailId(req.emailId);
         e.setUsername(req.username);
         e.setPasswordHash(passwordEncoder.encode(req.password));
+
+        // NEW FIELDS
+        e.setGender(req.gender);
+        e.setSalary(req.salary);
+
         e.setShiftTiming(mapShift(req.shiftTiming));
         e.setAddress(mapAddress(req.address));
         e.setEmergencyContact(mapEC(req.emergencyContact));
@@ -139,6 +144,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (req.newPassword != null && !req.newPassword.isBlank()) {
             e.setPasswordHash(passwordEncoder.encode(req.newPassword));
         }
+
+        // NEW FIELDS UPDATE
+        if (req.gender != null) e.setGender(req.gender);
+        if (req.salary != null) e.setSalary(req.salary);
+
         if (req.shiftTiming != null) e.setShiftTiming(mapShift(req.shiftTiming));
         if (req.address != null) e.setAddress(mapAddress(req.address));
         if (req.emergencyContact != null) e.setEmergencyContact(mapEC(req.emergencyContact));
@@ -201,6 +211,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         r.phoneNumber = e.getPhoneNumber();
         r.emailId = e.getEmailId();
         r.username = e.getUsername();
+
+        // NEW FIELDS
+        r.gender = e.getGender();
+        r.salary = e.getSalary();
+
         r.joinedDate = e.getJoinedDate();
         if (e.getShiftTiming() != null) {
             EmployeeCreateRequest.ShiftTimingDTO s = new EmployeeCreateRequest.ShiftTimingDTO();

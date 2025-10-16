@@ -17,6 +17,10 @@ public class EmployeeResponse {
     public String emailId;
     public String username;
 
+    // NEW FIELDS
+    public String gender;
+    public Double salary;
+
     public Instant joinedDate;
     public EmployeeCreateRequest.ShiftTimingDTO shiftTiming;
     public EmployeeCreateRequest.AddressDTO address;
