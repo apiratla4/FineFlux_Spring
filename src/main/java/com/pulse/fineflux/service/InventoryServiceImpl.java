@@ -3,12 +3,11 @@ package com.pulse.fineflux.service;
 import com.pulse.fineflux.domain.InventoryCreateDTO;
 import com.pulse.fineflux.domain.InventoryResponseDTO;
 import com.pulse.fineflux.domain.InventoryUpdateDTO;
+import com.pulse.fineflux.entity.Expense;
 import com.pulse.fineflux.entity.Inventory;
 import com.pulse.fineflux.entity.InventoryLog;
 import com.pulse.fineflux.entity.Product;
-import com.pulse.fineflux.repository.InventoryRepository;
-import com.pulse.fineflux.repository.InventoryLogRepository;
-import com.pulse.fineflux.repository.ProductRepository;
+import com.pulse.fineflux.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,6 +29,10 @@ public class InventoryServiceImpl implements InventoryService {
     private final InventoryLogRepository inventoryLogRepository;
     private final ProductRepository productRepository;
     private final ProfitLossService profitLossService;
+    // At the top of your InventoryServiceImpl, with your others:
+    private final ExpenseRepository expenseRepository;
+    private final ExpenseCategoryRepository expenseCategoryRepository;
+
 
     // CREATE (used first time only)
     @Override
@@ -120,7 +123,6 @@ public class InventoryServiceImpl implements InventoryService {
             Product product = productRepository.findByIdAndOrganizationId(productId, orgId)
                     .orElseThrow(() -> new RuntimeException("Product not found"));
 
-            // Compute new cumulative level
             BigDecimal increment = dto.getCurrentLevel() != null ? dto.getCurrentLevel() : BigDecimal.ZERO;
             BigDecimal prevTotal = product.getCurrentLevel() != null ? product.getCurrentLevel() : BigDecimal.ZERO;
             BigDecimal newTotal = prevTotal.add(increment);
@@ -129,7 +131,6 @@ public class InventoryServiceImpl implements InventoryService {
                 throw new IllegalStateException("Tank overflow! Too much stock");
             }
 
-            // Calculate stock value as (price per unit × current level)
             BigDecimal price = product.getPrice() != null ? BigDecimal.valueOf(product.getPrice()) : BigDecimal.ZERO;
             BigDecimal computedStockValue = price.multiply(newTotal);
 
@@ -149,12 +150,8 @@ public class InventoryServiceImpl implements InventoryService {
 
             Inventory savedRecord = inventoryRepository.save(inventory);
 
-            // Update product with new total
             product.setCurrentLevel(newTotal);
             productRepository.save(product);
-
-            // Calculate stock value for log (always matches latest inventory)
-            BigDecimal stockValueForLog = computedStockValue;
 
             InventoryLog historyLog = InventoryLog.builder()
                     .inventoryId(savedRecord.getInventoryId())
@@ -162,7 +159,7 @@ public class InventoryServiceImpl implements InventoryService {
                     .productId(savedRecord.getProductId())
                     .productName(savedRecord.getProductName())
                     .totalCapacity(savedRecord.getTotalCapacity())
-                    .stockValue(stockValueForLog) // Always computed from price × level
+                    .stockValue(computedStockValue)
                     .lastUpdated(savedRecord.getLastUpdated())
                     .empId(savedRecord.getEmpId())
                     .currentLevel(savedRecord.getCurrentLevel())
@@ -174,6 +171,39 @@ public class InventoryServiceImpl implements InventoryService {
 
             profitLossService.calculateAndSaveProfitLoss(orgId);
 
+            // --------- INVENTORY EXPENSES LOGIC INTEGRATION (PER-INCREMENT ONLY) -----------
+            try {
+                var inventoryCategory = expenseCategoryRepository.findByCategoryNameAndOrganizationId("inventory", orgId);
+
+                if (inventoryCategory.isPresent()) {
+                    // Calculate only for the increment (not total). E.g., added 100, price 97.56 => only 9756 logged
+                    BigDecimal increment1 = dto.getCurrentLevel() != null ? dto.getCurrentLevel() : BigDecimal.ZERO;
+                    BigDecimal productprice = increment1.multiply(price); // use current product price
+
+                    if (increment.compareTo(BigDecimal.ZERO) > 0) { // only positive increments
+                        Expense expense = Expense.builder()
+                                .description("inventory expenses")
+                                .amount(productprice.doubleValue())
+                                .categoryName("inventory")
+                                .expenseDate(java.time.LocalDate.now())
+                                .createdAt(LocalDateTime.now())
+                                .organizationId(orgId)
+                                .empId(dto.getEmpId())
+                                .build();
+
+                        expenseRepository.save(expense);
+                        log.info("Auto-inserted inventory expense for orgId={}, productId={}, increment={}, amount={}", orgId, productId, increment, productprice);
+                    } else {
+                        log.info("Inventory increment is zero or negative ({}), skipping expense insert", increment);
+                    }
+                } else {
+                    log.info("No 'inventory' category found for orgId={}, not inserting inventory expense", orgId);
+                }
+            } catch(Exception ex) {
+                log.error("Error inserting inventory expense for orgId={} productId={}: {}", orgId, productId, ex.getMessage(), ex);
+            }
+// --------- END INVENTORY EXPENSES LOGIC -----------
+
             log.debug("Inventory updated: total={}, stockValue={}, inventoryId={}", newTotal, computedStockValue, savedRecord.getInventoryId());
 
             return inventoryRepository.findAllByOrganizationId(orgId).stream()
@@ -184,7 +214,6 @@ public class InventoryServiceImpl implements InventoryService {
             throw e;
         }
     }
-
     @Override
     public List<InventoryResponseDTO> getAllInventories(String orgId) {
         try {

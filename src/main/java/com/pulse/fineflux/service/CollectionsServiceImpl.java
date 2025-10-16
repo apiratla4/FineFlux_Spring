@@ -84,6 +84,7 @@ public class CollectionsServiceImpl implements CollectionsService {
                     .receivedTotal(saved.getReceivedTotal())
                     .build();
             saleHistoryRepository.save(history);
+
             log.info("SaleHistory created/updated with collection for saleId={} empId={} orgId={}",
                     sale.getId(), sale.getEmpId(), sale.getOrganizationId());
         }

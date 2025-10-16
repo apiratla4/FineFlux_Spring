@@ -18,6 +18,7 @@ public class ExpenseServiceImpl implements ExpenseService {
 
     private final ExpenseRepository repo;
     private final ExpenseCategoryRepository catRepo;
+    private final FinanceSummaryService financeSummaryService;
 
     @Override
     public ExpenseResponseDTO create(ExpenseCreateDTO dto) {
@@ -34,6 +35,9 @@ public class ExpenseServiceImpl implements ExpenseService {
                     .empId(dto.getEmpId())
                     .build();
             Expense saved = repo.save(entity);
+
+            financeSummaryService.autoCreateFinanceSummary(saved.getOrganizationId());
+
             log.info("Expense created: {}", saved);
             return toResponse(saved);
         } catch(Exception e) {
