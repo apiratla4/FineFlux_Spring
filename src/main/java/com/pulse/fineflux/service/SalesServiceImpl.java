@@ -180,6 +180,25 @@ public class SalesServiceImpl implements SalesService {
     }
 
     @Override
+    public List<SalesResponseDTO> getSalesByDateRange(String organizationId, LocalDateTime from, LocalDateTime to) {
+        try {
+            log.info("Fetching sales for orgId={} from={} to={}", organizationId, from, to);
+
+            List<Sales> sales = salesRepository.findByOrganizationIdAndDateTimeBetween(organizationId, from, to);
+
+            log.debug("Found {} sales for orgId={} in date range", sales.size(), organizationId);
+
+            return sales.stream()
+                    .map(this::toResponse)
+                    .collect(Collectors.toList());
+
+        } catch (Exception e) {
+            log.error("Error fetching sales by date for orgId={}: {}", organizationId, e.getMessage(), e);
+            throw new RuntimeException("Error fetching sales by date range: " + e.getMessage());
+        }
+    }
+
+    @Override
     public SalesResponseDTO updateSale(String id, SalesUpdateDTO dto) {
         try {
             Sales sale = salesRepository.findById(id)
