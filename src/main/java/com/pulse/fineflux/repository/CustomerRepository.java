@@ -12,5 +12,9 @@ public interface CustomerRepository extends MongoRepository<Customer, String> {
     Page<Customer> findAllByOrganizationId(String organizationId, Pageable pageable);
     Optional<Customer> findByIdAndOrganizationId(String id, String organizationId);
     Optional<Customer> findByCustIdAndOrganizationId(String custId, String organizationId);
+
+    // NEW: direct delete by custId + org
+    long deleteByCustIdAndOrganizationId(String custId, String organizationId);
+
     long deleteByOrganizationId(String organizationId);
 }

@@ -1,5 +1,5 @@
 // src/main/java/com/pulse/fineflux/service/impl/CustomerServiceImpl.java
-package com.pulse.fineflux.service;
+package com.pulse.fineflux.service.impl;
 
 import com.pulse.fineflux.domain.CustomerCreateRequest;
 import com.pulse.fineflux.domain.CustomerResponse;
@@ -105,11 +105,22 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     public void delete(String organizationId, String id) {
         log.info("Deleting customer id={} orgId={}", id, organizationId);
-        if (!repo.findByIdAndOrganizationId(id, organizationId).isPresent()) {
+        if (repo.findByIdAndOrganizationId(id, organizationId).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer not found");
         }
         repo.deleteById(id);
         log.info("Deleted customer id={} orgId={}", id, organizationId);
+    }
+
+    // NEW: delete by external custId (used by UI)
+    @Override
+    public void deleteByCustId(String organizationId, String custId) {
+        log.info("Deleting customer by custId={} orgId={}", custId, organizationId);
+        long removed = repo.deleteByCustIdAndOrganizationId(custId, organizationId);
+        if (removed == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer not found");
+        }
+        log.info("Deleted customer custId={} orgId={}", custId, organizationId);
     }
 
     @Override
@@ -157,7 +168,7 @@ public class CustomerServiceImpl implements CustomerService {
         r.phoneNumber = c.getPhoneNumber();
         r.email = c.getEmail();
         r.notes = c.getNotes();
-        if (c.getAddress) {
+        if (c.getAddress() != null) { // FIX: add parentheses + null check
             CustomerCreateRequest.AddressDTO a = new CustomerCreateRequest.AddressDTO();
             a.line1 = c.getAddress().getLine1();
             a.line2 = c.getAddress().getLine2();

@@ -16,7 +16,7 @@ public class EmployeeNewTask {
     private String organizationId;
     private String taskTitle;
     private String description;
-    private String priority;      // e.g., "high", "medium", "low"
+    private String priority;    // e.g., "Low", "Medium", "High"
     private String shift;         // e.g., "Morning", "Afternoon", "Night"
     private String assignedToEmpId; // employee.empId (unique)
     private String assignedToName;  // for UI convenience

@@ -6,6 +6,7 @@ import com.pulse.fineflux.domain.EmployeeResponse;
 import com.pulse.fineflux.domain.EmployeeUpdateRequest;
 import com.pulse.fineflux.entity.Employee;
 import com.pulse.fineflux.repository.EmployeeRepository;
+import com.pulse.fineflux.domain.ChangePasswordRequest;
 import com.pulse.fineflux.service.EmployeeService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -61,6 +62,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         e.setEmailId(req.emailId);
         e.setUsername(req.username);
         e.setPasswordHash(passwordEncoder.encode(req.password));
+
+        // NEW FIELDS
+        e.setGender(req.gender);
+        e.setSalary(req.salary);
+
         e.setShiftTiming(mapShift(req.shiftTiming));
         e.setAddress(mapAddress(req.address));
         e.setEmergencyContact(mapEC(req.emergencyContact));
@@ -139,6 +145,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (req.newPassword != null && !req.newPassword.isBlank()) {
             e.setPasswordHash(passwordEncoder.encode(req.newPassword));
         }
+
+        // NEW FIELDS UPDATE
+        if (req.gender != null) e.setGender(req.gender);
+        if (req.salary != null) e.setSalary(req.salary);
+
         if (req.shiftTiming != null) e.setShiftTiming(mapShift(req.shiftTiming));
         if (req.address != null) e.setAddress(mapAddress(req.address));
         if (req.emergencyContact != null) e.setEmergencyContact(mapEC(req.emergencyContact));
@@ -201,6 +212,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         r.phoneNumber = e.getPhoneNumber();
         r.emailId = e.getEmailId();
         r.username = e.getUsername();
+
+        // NEW FIELDS
+        r.gender = e.getGender();
+        r.salary = e.getSalary();
+
         r.joinedDate = e.getJoinedDate();
         if (e.getShiftTiming() != null) {
             EmployeeCreateRequest.ShiftTimingDTO s = new EmployeeCreateRequest.ShiftTimingDTO();
@@ -238,5 +254,31 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "status must be ACTIVE or INACTIVE");
         }
         return u;
+    }
+
+    @Override
+    public void changePassword(String orgId, String employeeId, ChangePasswordRequest req) {
+        log.info("Change password for employee id={} orgId={}", employeeId, orgId);
+        Employee e = repo.findByIdAndOrganizationId(employeeId, orgId)
+                .orElseThrow(() -> {
+                    log.warn("Employee not found id={} orgId={}", employeeId, orgId);
+                    return new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found");
+                });
+
+        if (!e.getEmpId().equals(req.empId)) {
+            log.warn("Attempted password change with mismatched empId for id={}, orgId={}", employeeId, orgId);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid empId");
+        }
+
+        // Check password
+        if (!passwordEncoder.matches(req.currentPassword, e.getPasswordHash())) {
+            log.warn("Password change failed: current password does not match empId={} orgId={}", req.empId, orgId);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Current password is incorrect");
+        }
+
+        // Update password
+        e.setPasswordHash(passwordEncoder.encode(req.newPassword));
+        repo.save(e);
+        log.info("Password successfully changed for empId={} orgId={}", req.empId, orgId);
     }
 }
