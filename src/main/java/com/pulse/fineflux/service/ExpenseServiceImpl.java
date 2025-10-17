@@ -18,6 +18,7 @@ public class ExpenseServiceImpl implements ExpenseService {
 
     private final ExpenseRepository repo;
     private final ExpenseCategoryRepository catRepo;
+    private final FinanceSummaryService financeSummaryService;
 
     @Override
     public ExpenseResponseDTO create(ExpenseCreateDTO dto) {
@@ -34,6 +35,15 @@ public class ExpenseServiceImpl implements ExpenseService {
                     .empId(dto.getEmpId())
                     .build();
             Expense saved = repo.save(entity);
+
+            try {
+                log.info("Calling financeSummaryService.autoCreateFinanceSummary for orgId={} [action=expense]", saved.getOrganizationId());
+                financeSummaryService.autoCreateFinanceSummary(saved.getOrganizationId());
+                log.info("FinanceSummary successfully auto-created for orgId={} (expenses updated)", saved.getOrganizationId());
+            } catch (Exception fsEx) {
+                log.error("FinanceSummary auto-creation failed for orgId={} after expense: {}", saved.getOrganizationId(), fsEx.getMessage(), fsEx);
+            }
+
             log.info("Expense created: {}", saved);
             return toResponse(saved);
         } catch(Exception e) {

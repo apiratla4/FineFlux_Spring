@@ -10,7 +10,7 @@ public interface CollectionsRepository extends MongoRepository<Collections, Stri
 
     List<Collections> findByOrganizationIdAndEmpIdAndDateTimeBetween(String orgId, String empId, LocalDateTime from, LocalDateTime to);
 
-
+    List<Collections> findByOrganizationIdAndDateTimeBetween(String organizationId, LocalDateTime from, LocalDateTime to);
 
 }
 

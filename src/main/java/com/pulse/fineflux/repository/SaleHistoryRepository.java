@@ -14,5 +14,12 @@ public interface SaleHistoryRepository extends MongoRepository<SaleHistory, Stri
     List<SaleHistory> findByOrganizationId(String orgId);
 
     List<SaleHistory> findByOrganizationIdAndDateTimeBetween(String orgId, LocalDateTime from, LocalDateTime to);
+    List<SaleHistory> findByOrganizationIdAndEmpIdAndProductNameAndGunsAndDateTime(
+            String organizationId,
+            String empId,
+            String productName,
+            String guns,
+            java.time.LocalDateTime dateTime
+    );
 }
 

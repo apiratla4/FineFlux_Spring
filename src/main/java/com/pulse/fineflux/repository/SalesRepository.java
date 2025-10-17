@@ -19,8 +19,23 @@ public interface SalesRepository extends MongoRepository<Sales, String> {
             LocalDateTime startDateTime,
             LocalDateTime endDateTime
     );
-    List<Sales> findByOrganizationIdAndEmpIdAndProductNameAndGunsAndDateTime(
-            String organizationId, String empId, String productName, String guns, LocalDateTime dateTime);
 
+    List<Sales> findByOrganizationIdAndEmpIdAndProductNameAndGunsAndDateTimeBetween(
+            String organizationId,
+            String empId,
+            String productName,
+            String guns,
+            java.time.LocalDateTime from,
+            java.time.LocalDateTime to
+    );
+
+    // Exact timestamp match (fragile if milliseconds differ)
+    List<Sales> findByOrganizationIdAndEmpIdAndProductNameAndGunsAndDateTime(
+            String organizationId,
+            String empId,
+            String productName,
+            String guns,
+            java.time.LocalDateTime dateTime
+    );
 
 }

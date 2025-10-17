@@ -25,6 +25,7 @@ public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepository;
     private final InventoryService inventoryService;
     private final InventoryLogRepository inventoryLogRepository;
+    private final FinanceSummaryService financeSummaryService;
     /**
      * Get all products for a specific organization.
      */
