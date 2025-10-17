@@ -1,4 +1,4 @@
-// src/main/java/com/pulse/fineflux/service/impl/EmployeeServiceImpl.java
+// src/main/java/com/pulse/fineflux/service/EmployeeServiceImpl.java
 package com.pulse.fineflux.service;
 
 import com.pulse.fineflux.domain.EmployeeCreateRequest;
@@ -50,10 +50,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         Employee e = new Employee();
         e.setOrganizationId(organizationId);
         e.setEmpId(req.empId);
-
-        // Normalize status to uppercase; default to ACTIVE if missing
         e.setStatus(normalizeStatusOrDefault(req.status));
-
         e.setRole(req.role);
         e.setDepartment(req.department);
         e.setFirstName(req.firstName);
@@ -62,11 +59,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         e.setEmailId(req.emailId);
         e.setUsername(req.username);
         e.setPasswordHash(passwordEncoder.encode(req.password));
-
-        // NEW FIELDS
         e.setGender(req.gender);
         e.setSalary(req.salary);
-
         e.setShiftTiming(mapShift(req.shiftTiming));
         e.setAddress(mapAddress(req.address));
         e.setEmergencyContact(mapEC(req.emergencyContact));
@@ -117,7 +111,6 @@ public class EmployeeServiceImpl implements EmployeeService {
             e.setEmpId(req.empId);
         }
 
-        // Update status when provided
         if (req.status != null && !req.status.isBlank()) {
             e.setStatus(normalizeStatus(req.status));
         }
@@ -146,10 +139,8 @@ public class EmployeeServiceImpl implements EmployeeService {
             e.setPasswordHash(passwordEncoder.encode(req.newPassword));
         }
 
-        // NEW FIELDS UPDATE
         if (req.gender != null) e.setGender(req.gender);
         if (req.salary != null) e.setSalary(req.salary);
-
         if (req.shiftTiming != null) e.setShiftTiming(mapShift(req.shiftTiming));
         if (req.address != null) e.setAddress(mapAddress(req.address));
         if (req.emergencyContact != null) e.setEmergencyContact(mapEC(req.emergencyContact));
@@ -170,6 +161,33 @@ public class EmployeeServiceImpl implements EmployeeService {
         log.info("Deleted employee id={} orgId={}", id, organizationId);
     }
 
+    @Override
+    public void changePassword(String orgId, String employeeId, ChangePasswordRequest req) {
+        log.info("Change password for employee id={} orgId={}", employeeId, orgId);
+        Employee e = repo.findByIdAndOrganizationId(employeeId, orgId)
+                .orElseThrow(() -> {
+                    log.warn("Employee not found id={} orgId={}", employeeId, orgId);
+                    return new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found");
+                });
+
+        if (!e.getEmpId().equals(req.empId)) {
+            log.warn("Attempted password change with mismatched empId for id={}, orgId={}", employeeId, orgId);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid empId");
+        }
+
+        // Verify current password
+        if (!passwordEncoder.matches(req.currentPassword, e.getPasswordHash())) {
+            log.warn("Password change failed: current password does not match empId={} orgId={}", req.empId, orgId);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Current password is incorrect");
+        }
+
+        // Update to new password
+        e.setPasswordHash(passwordEncoder.encode(req.newPassword));
+        repo.save(e);
+        log.info("Password successfully changed for empId={} orgId={}", req.empId, orgId);
+    }
+
+    // Helper methods
     private Employee.ShiftTiming mapShift(EmployeeCreateRequest.ShiftTimingDTO dto) {
         if (dto == null) return null;
         Employee.ShiftTiming s = new Employee.ShiftTiming();
@@ -212,12 +230,10 @@ public class EmployeeServiceImpl implements EmployeeService {
         r.phoneNumber = e.getPhoneNumber();
         r.emailId = e.getEmailId();
         r.username = e.getUsername();
-
-        // NEW FIELDS
         r.gender = e.getGender();
         r.salary = e.getSalary();
-
         r.joinedDate = e.getJoinedDate();
+
         if (e.getShiftTiming() != null) {
             EmployeeCreateRequest.ShiftTimingDTO s = new EmployeeCreateRequest.ShiftTimingDTO();
             s.start = e.getShiftTiming().getStart();
@@ -254,31 +270,5 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "status must be ACTIVE or INACTIVE");
         }
         return u;
-    }
-
-    @Override
-    public void changePassword(String orgId, String employeeId, ChangePasswordRequest req) {
-        log.info("Change password for employee id={} orgId={}", employeeId, orgId);
-        Employee e = repo.findByIdAndOrganizationId(employeeId, orgId)
-                .orElseThrow(() -> {
-                    log.warn("Employee not found id={} orgId={}", employeeId, orgId);
-                    return new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found");
-                });
-
-        if (!e.getEmpId().equals(req.empId)) {
-            log.warn("Attempted password change with mismatched empId for id={}, orgId={}", employeeId, orgId);
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid empId");
-        }
-
-        // Check password
-        if (!passwordEncoder.matches(req.currentPassword, e.getPasswordHash())) {
-            log.warn("Password change failed: current password does not match empId={} orgId={}", req.empId, orgId);
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Current password is incorrect");
-        }
-
-        // Update password
-        e.setPasswordHash(passwordEncoder.encode(req.newPassword));
-        repo.save(e);
-        log.info("Password successfully changed for empId={} orgId={}", req.empId, orgId);
     }
 }

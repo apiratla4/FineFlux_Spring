@@ -4,15 +4,14 @@ import jakarta.validation.constraints.NotBlank;
 
 public class ChangePasswordRequest {
 
-    @NotBlank
+    @NotBlank(message = "Employee ID is required")
     public String empId;
 
-    @NotBlank
+    @NotBlank(message = "Current password is required")
     public String currentPassword;
 
-    @NotBlank
+    @NotBlank(message = "New password is required")
     public String newPassword;
 
     public ChangePasswordRequest() {}
 }
-

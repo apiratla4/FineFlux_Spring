@@ -15,5 +15,4 @@ public interface EmployeeService {
     EmployeeResponse update(String organizationId, String id, EmployeeUpdateRequest req);
     void delete(String organizationId, String id);
     void changePassword(String orgId, String employeeId, ChangePasswordRequest req);
-
 }
