@@ -56,4 +56,19 @@ public class EmployeeController {
         log.info("HTTP DELETE employees/{id} id={} orgId={}", id, orgId);
         service.delete(orgId, id);
     }
+
+    /**
+     * Change employee password
+     * PUT /api/organizations/{orgId}/employees/{id}/change-password
+     */
+    @PutMapping("/{id}/change-password")
+    public ResponseEntity<String> changePassword(
+            @PathVariable("orgId") String orgId,
+            @PathVariable("id") String id,
+            @Valid @RequestBody ChangePasswordRequest req
+    ) {
+        log.info("HTTP PUT employees/{id}/change-password id={} orgId={}", id, orgId);
+        service.changePassword(orgId, id, req);
+        return ResponseEntity.ok("Password changed successfully");
+    }
 }

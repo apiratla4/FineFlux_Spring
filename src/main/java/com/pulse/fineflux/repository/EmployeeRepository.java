@@ -10,9 +10,7 @@ import java.util.Optional;
 
 public interface EmployeeRepository extends MongoRepository<Employee, String> {
     Optional<Employee> findByUsername(String username);
-
     boolean existsByEmailId(String emailId);
-
     boolean existsByEmpId(String empId);
     Employee findByEmpIdAndOrganizationId(String empId, String organizationId);
 
@@ -21,8 +19,6 @@ public interface EmployeeRepository extends MongoRepository<Employee, String> {
     Optional<Employee> findByIdAndOrganizationId(String id, String organizationId);
     boolean existsByIdAndOrganizationId(String id, String organizationId);
     boolean existsByOrganizationIdAndUsername(String organizationId, String username);
-
     Optional<Employee> findByOrganizationIdAndUsername(String orgId, String emailOrUsername);
-
     Optional<Employee> findByOrganizationIdAndEmailId(String orgId, String emailOrUsername);
 }
