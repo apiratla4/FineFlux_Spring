@@ -33,6 +33,12 @@ public class EmployeeCreateRequest {
     @NotBlank
     public String password;
 
+    // NEW FIELDS
+    public String gender; // Optional: Male, Female, Other, etc.
+
+    @Min(0)
+    public Double salary; // Optional: employee salary
+
     public ShiftTimingDTO shiftTiming;
     public AddressDTO address;
     public EmergencyContactDTO emergencyContact;

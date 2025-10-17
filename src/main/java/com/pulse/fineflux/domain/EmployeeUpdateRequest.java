@@ -26,6 +26,12 @@ public class EmployeeUpdateRequest {
     public String username;
     public String newPassword;
 
+    // NEW FIELDS
+    public String gender;
+
+    @Min(0)
+    public Double salary;
+
     public EmployeeCreateRequest.ShiftTimingDTO shiftTiming;
     public EmployeeCreateRequest.AddressDTO address;
     public EmployeeCreateRequest.EmergencyContactDTO emergencyContact;

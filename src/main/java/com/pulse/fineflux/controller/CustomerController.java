@@ -2,6 +2,7 @@
 package com.pulse.fineflux.controller;
 
 import com.pulse.fineflux.domain.CustomerCreateRequest;
+import com.pulse.fineflux.domain.CustomerHistoryCreateRequest;
 import com.pulse.fineflux.domain.CustomerResponse;
 import com.pulse.fineflux.domain.CustomerUpdateRequest;
 import com.pulse.fineflux.service.CustomerHistoryService;
@@ -37,15 +38,15 @@ public class CustomerController {
     }
 
     @PostMapping
-    public CustomerResponse create(@PathVariable("orgId") String orgId, @Valid @RequestBody CustomerCreateRequest req) {
-        // 1) create customer
+    public CustomerResponse create(@PathVariable("orgId") String orgId,
+                                   @Valid @RequestBody CustomerCreateRequest req) {
         CustomerResponse created = customerService.create(orgId, req);
-
-        // 2) auto-create initial history row with opening amount
         if (created.amountBorrowed != null && created.amountBorrowed.signum() > 0) {
-            var hReq = new com.pulse.fineflux.domain.CustomerHistoryCreateRequest();
+            CustomerHistoryCreateRequest hReq = new CustomerHistoryCreateRequest();
             hReq.custId = created.custId;
-            hReq.transactionAmount = created.amountBorrowed;
+            // If your backend expects +payment and -borrow, ensure this sign matches domain rules.
+            // UI sends borrow as negative; keep consistency service-side as well.
+            hReq.transactionAmount = created.amountBorrowed.negate(); // optional: align sign convention
             hReq.transactionDate = java.time.Instant.now();
             hReq.notes = "Opening balance on customer creation";
             historyService.addTransaction(orgId, hReq);
@@ -54,13 +55,35 @@ public class CustomerController {
     }
 
     @PutMapping("/{id}")
-    public CustomerResponse update(@PathVariable("orgId") String orgId, @PathVariable String id, @Valid @RequestBody CustomerUpdateRequest req) {
+    public CustomerResponse update(@PathVariable("orgId") String orgId,
+                                   @PathVariable String id,
+                                   @Valid @RequestBody CustomerUpdateRequest req) {
         return customerService.update(orgId, id, req);
     }
 
+    // Existing: delete by internal id
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable("orgId") String orgId, @PathVariable String id) {
+    public ResponseEntity<Void> delete(@PathVariable("orgId") String orgId,
+                                       @PathVariable String id) {
         customerService.delete(orgId, id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // New: delete by external custId used by UI
+    @DeleteMapping("/by-cust/{custId}")
+    public ResponseEntity<Void> deleteByCustId(@PathVariable("orgId") String orgId,
+                                               @PathVariable String custId) {
+        customerService.deleteByCustId(orgId, custId);
+        return ResponseEntity.noContent().build();
+    }
+
+    // Optional: delete via query param (alternative pattern)
+    // DELETE /api/organizations/{orgId}/customers?custId=ABC123
+    @DeleteMapping(params = "custId")
+    public ResponseEntity<Void> deleteByCustIdQuery(@PathVariable("orgId") String orgId,
+                                                    @RequestParam("custId") String custId) {
+        customerService.deleteByCustId(orgId, custId);
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping
