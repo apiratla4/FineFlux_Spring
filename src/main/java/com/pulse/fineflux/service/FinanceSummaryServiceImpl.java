@@ -37,8 +37,8 @@ public class FinanceSummaryServiceImpl implements FinanceSummaryService {
         entity.setPhonePay(fmt(dto.getPhonePay()));
         entity.setCreditCard(fmt(dto.getCreditCard()));
         entity.setPetrolInventory(fmt(dto.getPetrolInventory()));
-        entity.setDeiselInventory(fmt(dto.getDeiselInventory()));
-        entity.setFPetrolInventory(fmt(dto.getFPetrolInventory()));
+        entity.setDieselInventory(fmt(dto.getDieselInventory()));
+        entity.setPremiumPetrolInventory(fmt(dto.getPremiumPetrolInventory()));
         entity.setCngInventory(fmt(dto.getCngInventory()));
         entity.setTwoTInventory(fmt(dto.getTwoTInventory()));
         entity.setTotalExpenses(fmt(dto.getTotalExpenses()));
@@ -48,6 +48,7 @@ public class FinanceSummaryServiceImpl implements FinanceSummaryService {
         log.info("FinanceSummary updated: {}", saved.getId());
         return toResponse(saved);
     }
+
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -71,8 +72,8 @@ public class FinanceSummaryServiceImpl implements FinanceSummaryService {
 
             // 2) Inventory values per product (latest currentLevel * product.price)
             double petrolInventory = fmt(getInventoryValue(orgId, "Petrol"));
-            double deiselInventory = fmt(getInventoryValue(orgId, "Deisel"));
-            double fPetrolInventory = fmt(getInventoryValue(orgId, "F-Petrol"));
+            double dieselInventory = fmt(getInventoryValue(orgId, "Diesel"));
+            double premiumPetrolInventory = fmt(getInventoryValue(orgId, "Premium Petrol"));
             double cngInventory = fmt(getInventoryValue(orgId, "CNG"));
             double twoTInventory = fmt(getInventoryValue(orgId, "2T"));
 
@@ -88,7 +89,7 @@ public class FinanceSummaryServiceImpl implements FinanceSummaryService {
             // 4) Total
             double total = fmt(
                     cashReceived + phonePay + creditCard
-                            + petrolInventory + deiselInventory + fPetrolInventory + cngInventory + twoTInventory
+                            + petrolInventory + dieselInventory + premiumPetrolInventory + cngInventory + twoTInventory
                             - totalExpenses
             );
 
@@ -99,8 +100,8 @@ public class FinanceSummaryServiceImpl implements FinanceSummaryService {
                     .phonePay(phonePay)
                     .creditCard(creditCard)
                     .petrolInventory(petrolInventory)
-                    .deiselInventory(deiselInventory)
-                    .fPetrolInventory(fPetrolInventory)
+                    .dieselInventory(dieselInventory)
+                    .premiumPetrolInventory(premiumPetrolInventory)
                     .cngInventory(cngInventory)
                     .twoTInventory(twoTInventory)
                     .totalExpenses(totalExpenses)
@@ -118,25 +119,22 @@ public class FinanceSummaryServiceImpl implements FinanceSummaryService {
         }
     }
 
+    // --- Robustly gets the latest inventory log value ---
     private double getInventoryValue(String orgId, String productName) {
         try {
-            Product p = productRepository.findByOrganizationId(orgId).stream()
-                    .filter(prod -> productName.equalsIgnoreCase(prod.getProductName()))
-                    .findFirst()
+            Inventory latest = inventoryRepo.findAllByOrganizationId(orgId).stream()
+                    .filter(inv -> inv.getProductName() != null && inv.getProductName().equalsIgnoreCase(productName))
+                    .max((a, b) -> b.getLastUpdated().compareTo(a.getLastUpdated()))
                     .orElse(null);
-            if (p == null) return 0.0;
-
-            InventoryLog latest = inventoryLogRepository
-                    .findTopByProductIdOrderByLastUpdatedDesc(p.getId())
-                    .orElse(null);
-
-            if (latest != null && latest.getCurrentLevel() != null && p.getPrice() != null) {
-                double value = latest.getCurrentLevel().doubleValue() * p.getPrice().doubleValue();
+            if (latest != null && latest.getStockValue() != null) {
+                double value = latest.getStockValue().doubleValue();
+                log.debug("Latest Inventory for orgId={} productName={} is stockValue={}", orgId, productName, value);
                 return fmt(value);
             }
+            log.warn("No inventory found or missing stockValue for orgId={} productName={}", orgId, productName);
             return 0.0;
         } catch (Exception e) {
-            log.error("Error computing inventory value for orgId={} product={}: {}", orgId, productName, e.getMessage(), e);
+            log.error("Error computing inventory value for orgId={} productName={}: {}", orgId, productName, e.getMessage(), e);
             return 0.0;
         }
     }
@@ -166,8 +164,8 @@ public class FinanceSummaryServiceImpl implements FinanceSummaryService {
                 .phonePay(fmt(e.getPhonePay()))
                 .creditCard(fmt(e.getCreditCard()))
                 .petrolInventory(fmt(e.getPetrolInventory()))
-                .deiselInventory(fmt(e.getDeiselInventory()))
-                .fPetrolInventory(fmt(e.getFPetrolInventory()))
+                .dieselInventory(fmt(e.getDieselInventory()))
+                .premiumPetrolInventory(fmt(e.getPremiumPetrolInventory()))
                 .cngInventory(fmt(e.getCngInventory()))
                 .twoTInventory(fmt(e.getTwoTInventory()))
                 .totalExpenses(fmt(e.getTotalExpenses()))

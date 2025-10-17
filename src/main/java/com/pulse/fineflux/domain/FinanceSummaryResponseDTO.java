@@ -14,8 +14,8 @@ public class FinanceSummaryResponseDTO {
     private double phonePay;
     private double creditCard;
     private double petrolInventory;
-    private double deiselInventory;
-    private double fPetrolInventory;
+    private double dieselInventory;
+    private double premiumPetrolInventory;
     private double cngInventory;
     private double twoTInventory;
     private double totalExpenses;

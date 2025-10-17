@@ -18,8 +18,8 @@ public class FinanceSummary {
     private double phonePay;
     private double creditCard;
     private double petrolInventory;
-    private double deiselInventory;
-    private double fPetrolInventory;
+    private double dieselInventory;
+    private double premiumPetrolInventory;
     private double cngInventory;
     private double twoTInventory; // note: can't start field name with digit!
     private double totalExpenses;

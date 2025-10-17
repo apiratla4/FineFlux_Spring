@@ -23,11 +23,9 @@ public class SalesServiceImpl implements SalesService {
     private final SalesRepository salesRepository;
     private final GunInfoRepository gunInfoRepository;
     private final ProductRepository productRepository;
-    private final ProfitLossService profitLossService;
     private final InventoryRepository inventoryRepository;
     private final InventoryLogRepository inventoryLogRepository;
-    private final CollectionsRepository collectionsRepository;
-    private final SaleHistoryRepository saleHistoryRepository;
+    private final FinanceSummaryService financeSummaryService;
 
     @Override
     public SalesResponseDTO createSale(SalesCreateDTO dto) {
@@ -99,7 +97,15 @@ public class SalesServiceImpl implements SalesService {
 
             log.info("SaleHistory record created for empId={} and orgId={}", dto.getEmpId(), dto.getOrganizationId());
 
-            profitLossService.calculateAndSaveProfitLoss(dto.getOrganizationId());
+            try {
+                log.info("Calling financeSummaryService.autoCreateFinanceSummary for orgId={} after collection create", saved.getOrganizationId());
+                financeSummaryService.autoCreateFinanceSummary(saved.getOrganizationId());
+                log.info("FinanceSummary successfully auto-created for orgId={} after collection create", saved.getOrganizationId());
+            } catch (Exception fsEx) {
+                log.error("FinanceSummary auto-creation failed for orgId={} after collection create: {}", saved.getOrganizationId(), fsEx.getMessage(), fsEx);
+            }
+
+
             log.info("Sale created successfully: {}", saved);
 
             // Update product stock

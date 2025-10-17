@@ -31,7 +31,7 @@ public class CollectionsServiceImpl implements CollectionsService {
         Collections entity = new Collections();
         BeanUtils.copyProperties(dto, entity);
 
-        // Find exact sale for this org+empId+productName+guns+dateTime
+        // Exact match first
         Sales matchingSale = salesRepository
                 .findByOrganizationIdAndEmpIdAndProductNameAndGunsAndDateTime(
                         dto.getOrganizationId(),
@@ -43,31 +43,62 @@ public class CollectionsServiceImpl implements CollectionsService {
                 .findFirst()
                 .orElse(null);
 
-        double expected = (matchingSale != null) ? matchingSale.getSalesInRupees() : 0.0;
+        // Fallback: latest in day window
+        if (matchingSale == null) {
+            LocalDateTime dayStart = dto.getDateTime().toLocalDate().atStartOfDay();
+            LocalDateTime dayEnd = dayStart.plusDays(1);
 
+            matchingSale = salesRepository
+                    .findByOrganizationIdAndEmpIdAndProductNameAndGunsAndDateTimeBetween(
+                            dto.getOrganizationId(),
+                            dto.getEmpId(),
+                            dto.getProductName(),
+                            dto.getGuns(),
+                            dayStart, dayEnd)
+                    .stream()
+                    .max((a, b) -> b.getDateTime().compareTo(a.getDateTime()))
+                    .orElse(null);
+        }
+
+        double expected = (matchingSale != null) ? matchingSale.getSalesInRupees() : 0.0;
         double received = dto.getCashReceived() + dto.getPhonePay() + dto.getCreditCard();
         entity.setExpectedTotal(expected);
         entity.setReceivedTotal(received);
-
-// Compute shortCollections
         entity.setShortCollections(expected - received);
 
-// ...continue saving entity as before...
+        // Save collection
         Collections saved = collectionsRepository.save(entity);
 
-
-
-        // You may still want to update SaleHistory as usual for all sales in the day:
+        // Day window
         LocalDateTime dayStart = dto.getDateTime().toLocalDate().atStartOfDay();
         LocalDateTime dayEnd = dayStart.plusDays(1);
 
         List<Sales> salesList = salesRepository.findByOrganizationIdAndEmpIdAndDateTimeBetween(
                 saved.getOrganizationId(), saved.getEmpId(), dayStart, dayEnd);
 
+        // Use collection's dateTime as the unique event key for SaleHistory
+        LocalDateTime historyEventTime = saved.getDateTime();
+
         for (Sales sale : salesList) {
+            // If a row for this sale+event already exists, skip
+            boolean exists = !saleHistoryRepository
+                    .findByOrganizationIdAndEmpIdAndProductNameAndGunsAndDateTime(
+                            sale.getOrganizationId(),
+                            sale.getEmpId(),
+                            sale.getProductName(),
+                            sale.getGuns(),
+                            historyEventTime
+                    ).isEmpty();
+            if (exists) {
+                log.info("SaleHistory already exists for orgId={} empId={} product={} guns={} at eventTime={}, skipping",
+                        sale.getOrganizationId(), sale.getEmpId(), sale.getProductName(), sale.getGuns(), historyEventTime);
+                continue;
+            }
+
+            // Create exactly one row for this collection event
             SaleHistory history = SaleHistory.builder()
                     .organizationId(sale.getOrganizationId())
-                    .dateTime(sale.getDateTime())
+                    .dateTime(historyEventTime) // event time = collection time
                     .productName(sale.getProductName())
                     .guns(sale.getGuns())
                     .empId(sale.getEmpId())
@@ -83,10 +114,11 @@ public class CollectionsServiceImpl implements CollectionsService {
                     .shortCollections(saved.getShortCollections())
                     .receivedTotal(saved.getReceivedTotal())
                     .build();
+
             saleHistoryRepository.save(history);
 
-            log.info("SaleHistory created/updated with collection for saleId={} empId={} orgId={}",
-                    sale.getId(), sale.getEmpId(), sale.getOrganizationId());
+            log.info("SaleHistory created (collection event) for saleId={} empId={} orgId={} eventTime={}",
+                    sale.getId(), sale.getEmpId(), sale.getOrganizationId(), historyEventTime);
         }
 
         return convertToResponse(saved);

@@ -114,17 +114,6 @@ public class ProductServiceImpl implements ProductService {
             inventoryService.createInventory(invDto);
             log.debug("Inventory and InventoryLog automatically inserted for productId={}", savedProduct.getId());
 
-
-            // Now trigger FinanceSummary auto-create
-            try {
-                log.warn("About to call autoCreateFinanceSummary (post-inventory) for orgId={}", savedProduct.getOrganizationId());
-                financeSummaryService.autoCreateFinanceSummary(savedProduct.getOrganizationId());
-                log.warn("Returned from autoCreateFinanceSummary (post-inventory) for orgId={}", savedProduct.getOrganizationId());
-            } catch (Exception fsEx) {
-                log.error("FinanceSummary auto-create failed (post-inventory) for orgId={}: {}", savedProduct.getOrganizationId(), fsEx.getMessage(), fsEx);
-            }
-
-
             return toResponse(savedProduct);
 
         } catch (Exception e) {

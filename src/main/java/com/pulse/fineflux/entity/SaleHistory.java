@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 @Document(collection = "sale_history")
+
 public class SaleHistory {
     @Id
     private String id;
@@ -26,8 +27,6 @@ public class SaleHistory {
     private double salesInLiters;
     private double price;
     private float salesInRupees;
-
-    // Collection/money fields
     private double cashReceived;
     private double phonePay;
     private double creditCard;

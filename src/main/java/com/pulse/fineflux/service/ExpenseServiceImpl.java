@@ -36,7 +36,13 @@ public class ExpenseServiceImpl implements ExpenseService {
                     .build();
             Expense saved = repo.save(entity);
 
-            financeSummaryService.autoCreateFinanceSummary(saved.getOrganizationId());
+            try {
+                log.info("Calling financeSummaryService.autoCreateFinanceSummary for orgId={} [action=expense]", saved.getOrganizationId());
+                financeSummaryService.autoCreateFinanceSummary(saved.getOrganizationId());
+                log.info("FinanceSummary successfully auto-created for orgId={} (expenses updated)", saved.getOrganizationId());
+            } catch (Exception fsEx) {
+                log.error("FinanceSummary auto-creation failed for orgId={} after expense: {}", saved.getOrganizationId(), fsEx.getMessage(), fsEx);
+            }
 
             log.info("Expense created: {}", saved);
             return toResponse(saved);
