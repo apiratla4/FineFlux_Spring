@@ -25,8 +25,7 @@ public class EmployeeUpdateRequest {
 
     public String username;
     public String newPassword;
-
-    // NEW FIELDS
+    public String profileImageUrl;
     public String gender;
 
     @Min(0)

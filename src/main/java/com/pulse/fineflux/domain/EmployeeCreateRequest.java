@@ -33,6 +33,8 @@ public class EmployeeCreateRequest {
     @NotBlank
     public String password;
 
+    public String profileImageUrl;
+
     // NEW FIELDS
     public String gender; // Optional: Male, Female, Other, etc.
 
