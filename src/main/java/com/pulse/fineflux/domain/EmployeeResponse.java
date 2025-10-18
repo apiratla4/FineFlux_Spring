@@ -16,6 +16,7 @@ public class EmployeeResponse {
     public String phoneNumber;
     public String emailId;
     public String username;
+    public String profileImageUrl;
 
     // NEW FIELDS
     public String gender;

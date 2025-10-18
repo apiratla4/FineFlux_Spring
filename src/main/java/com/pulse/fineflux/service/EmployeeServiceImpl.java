@@ -7,7 +7,6 @@ import com.pulse.fineflux.domain.EmployeeUpdateRequest;
 import com.pulse.fineflux.entity.Employee;
 import com.pulse.fineflux.repository.EmployeeRepository;
 import com.pulse.fineflux.domain.ChangePasswordRequest;
-import com.pulse.fineflux.service.EmployeeService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -64,6 +63,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         e.setShiftTiming(mapShift(req.shiftTiming));
         e.setAddress(mapAddress(req.address));
         e.setEmergencyContact(mapEC(req.emergencyContact));
+        e.setProfileImageUrl(req.profileImageUrl); // NEW: Set profile image URL
 
         e = repo.save(e);
         log.info("Created employee id={} orgId={} empId={}", e.getId(), organizationId, e.getEmpId());
@@ -144,6 +144,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (req.shiftTiming != null) e.setShiftTiming(mapShift(req.shiftTiming));
         if (req.address != null) e.setAddress(mapAddress(req.address));
         if (req.emergencyContact != null) e.setEmergencyContact(mapEC(req.emergencyContact));
+        if (req.profileImageUrl != null) e.setProfileImageUrl(req.profileImageUrl); // NEW: Update profile image URL
 
         e = repo.save(e);
         log.info("Updated employee id={} orgId={} empId={}", id, organizationId, e.getEmpId());
@@ -170,21 +171,25 @@ public class EmployeeServiceImpl implements EmployeeService {
                     return new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found");
                 });
 
-        if (!e.getEmpId().equals(req.empId)) {
-            log.warn("Attempted password change with mismatched empId for id={}, orgId={}", employeeId, orgId);
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid empId");
-        }
-
         // Verify current password
         if (!passwordEncoder.matches(req.currentPassword, e.getPasswordHash())) {
-            log.warn("Password change failed: current password does not match empId={} orgId={}", req.empId, orgId);
+            log.warn("Password change failed: incorrect current password for employee id={} empId={} orgId={}",
+                    employeeId, e.getEmpId(), orgId);
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Current password is incorrect");
+        }
+
+        // Validate new password length
+        if (req.newPassword == null || req.newPassword.length() < 6) {
+            log.warn("Password change failed: new password too short for employee id={} orgId={}", employeeId, orgId);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password must be at least 6 characters");
         }
 
         // Update to new password
         e.setPasswordHash(passwordEncoder.encode(req.newPassword));
         repo.save(e);
-        log.info("Password successfully changed for empId={} orgId={}", req.empId, orgId);
+
+        log.info("Password successfully changed for employee id={} empId={} orgId={}",
+                employeeId, e.getEmpId(), orgId);
     }
 
     // Helper methods
@@ -233,6 +238,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         r.gender = e.getGender();
         r.salary = e.getSalary();
         r.joinedDate = e.getJoinedDate();
+        r.profileImageUrl = e.getProfileImageUrl(); // NEW: Include profile image URL in response
 
         if (e.getShiftTiming() != null) {
             EmployeeCreateRequest.ShiftTimingDTO s = new EmployeeCreateRequest.ShiftTimingDTO();
