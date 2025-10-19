@@ -1,5 +1,5 @@
-// domain/EmployeeDutyResponseDTO.java
 package com.pulse.fineflux.domain;
+
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -20,10 +20,8 @@ public class EmployeeDutyResponseDTO {
     private String organizationId;
     private String empId;
     private LocalDate dutyDate;
-
-    private List<String> productNames;
-    private List<String> gunNames;
-
+    private String productId;
+    private List<String> gunIds;
     private String shiftStart;
     private String shiftEnd;
     private Double totalHours;

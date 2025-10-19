@@ -1,4 +1,3 @@
-// domain/EmployeeDutyUpdateDTO.java
 package com.pulse.fineflux.domain;
 
 import lombok.AllArgsConstructor;
@@ -8,7 +7,6 @@ import lombok.Setter;
 
 import java.time.LocalDate;
 import java.util.List;
-
 @Getter
 @Setter
 @NoArgsConstructor
@@ -16,8 +14,8 @@ import java.util.List;
 public class EmployeeDutyUpdateDTO {
 
     private LocalDate dutyDate;
-    private List<String> productNames;
-    private List<String> gunNames;
+    private String productId;
+    private List<String> gunIds;
     private String shiftStart;
     private String shiftEnd;
     private String status;
