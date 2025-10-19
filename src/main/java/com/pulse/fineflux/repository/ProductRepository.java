@@ -1,5 +1,6 @@
 package com.pulse.fineflux.repository;
 import com.pulse.fineflux.entity.Product;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 import java.util.List;
@@ -10,4 +11,5 @@ public interface ProductRepository extends MongoRepository<Product, String> {
     Optional<Product> findByIdAndOrganizationId(String id, String organizationId);
 
 
+    boolean existsByOrganizationIdAndProductName(@NotBlank(message = "Organization ID is required") String organizationId, String productName);
 }
