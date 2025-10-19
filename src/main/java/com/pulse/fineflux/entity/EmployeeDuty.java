@@ -1,4 +1,4 @@
-// domain/EmployeeDuty.java
+// entity/EmployeeDuty.java
 package com.pulse.fineflux.entity;
 
 import lombok.AllArgsConstructor;
@@ -26,16 +26,18 @@ public class EmployeeDuty {
     private String organizationId;
     private String empId;
     private LocalDate dutyDate;
-    private String productId;
-    private List<String> gunIds;
+
+    // Changed to List for multiple products
+    private List<String> productNames;
+    private List<String> gunNames;
+
     private String shiftStart;
     private String shiftEnd;
     private Double totalHours;
-    private String status; // SCHEDULED, ACTIVE, COMPLETED, CANCELLED
+    private String status;
     private Date createdAt;
     private Date updatedAt;
 
-    // Calculate total hours based on shift times
     public void calculateTotalHours() {
         if (shiftStart != null && shiftEnd != null) {
             LocalTime start = LocalTime.parse(shiftStart);
@@ -43,7 +45,6 @@ public class EmployeeDuty {
 
             Duration duration;
             if (end.isBefore(start)) {
-                // Overnight shift
                 duration = Duration.between(start, LocalTime.MAX)
                         .plus(Duration.between(LocalTime.MIN, end))
                         .plusMinutes(1);

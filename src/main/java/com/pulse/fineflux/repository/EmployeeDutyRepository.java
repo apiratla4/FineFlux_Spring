@@ -1,4 +1,4 @@
-
+// repository/EmployeeDutyRepository.java
 package com.pulse.fineflux.repository;
 
 import com.pulse.fineflux.entity.EmployeeDuty;
@@ -18,9 +18,22 @@ public interface EmployeeDutyRepository extends MongoRepository<EmployeeDuty, St
 
     List<EmployeeDuty> findByOrganizationIdAndEmpId(String organizationId, String empId);
 
-    Optional<EmployeeDuty> findByOrganizationIdAndEmpIdAndDutyDate(String organizationId, String empId, LocalDate dutyDate);
+    Optional<EmployeeDuty> findByOrganizationIdAndEmpIdAndDutyDate(
+            String organizationId, String empId, LocalDate dutyDate);
 
-    List<EmployeeDuty> findByEmpIdAndDutyDateBetween(String empId, LocalDate startDate, LocalDate endDate);
+    List<EmployeeDuty> findByEmpIdAndDutyDateBetween(
+            String empId, LocalDate startDate, LocalDate endDate);
+
+    List<EmployeeDuty> findByOrganizationIdAndDutyDateBetween(
+            String organizationId, LocalDate startDate, LocalDate endDate);
 
     List<EmployeeDuty> findByOrganizationIdAndStatus(String organizationId, String status);
+
+    List<EmployeeDuty> findByOrganizationIdAndEmpIdAndDutyDateBetween(
+            String organizationId, String empId, LocalDate startDate, LocalDate endDate);
+
+    List<EmployeeDuty> findByOrganizationIdAndDutyDate(String organizationId, LocalDate dutyDate);
+
+    List<EmployeeDuty> findByOrganizationIdAndDutyDateBetweenAndStatus(
+            String organizationId, LocalDate startDate, LocalDate endDate, String status);
 }

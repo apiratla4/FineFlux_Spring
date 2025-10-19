@@ -1,3 +1,4 @@
+// service/EmployeeDutyService.java
 package com.pulse.fineflux.service;
 
 import com.pulse.fineflux.domain.EmployeeDutyCreateDTO;
@@ -25,7 +26,31 @@ public interface EmployeeDutyService {
 
     List<EmployeeDutyResponseDTO> getDutiesByOrganizationAndEmployee(String organizationId, String empId);
 
-    List<EmployeeDutyResponseDTO> getDutiesByEmployeeAndDateRange(String empId, LocalDate startDate, LocalDate endDate);
+    List<EmployeeDutyResponseDTO> getDutiesByEmployeeAndDateRange(
+            String empId, LocalDate startDate, LocalDate endDate);
 
     List<EmployeeDutyResponseDTO> getDutiesByStatus(String organizationId, String status);
+
+    List<EmployeeDutyResponseDTO> getDutiesForToday(String organizationId);
+
+    List<EmployeeDutyResponseDTO> getDutiesForThisWeek(String organizationId);
+
+    List<EmployeeDutyResponseDTO> getDutiesForThisMonth(String organizationId);
+
+    List<EmployeeDutyResponseDTO> getDutiesByCustomDateRange(
+            String organizationId, LocalDate startDate, LocalDate endDate);
+
+    List<EmployeeDutyResponseDTO> getEmployeeDutiesForToday(String organizationId, String empId);
+
+    List<EmployeeDutyResponseDTO> getEmployeeDutiesForThisWeek(String organizationId, String empId);
+
+    List<EmployeeDutyResponseDTO> getEmployeeDutiesForThisMonth(String organizationId, String empId);
+
+    List<EmployeeDutyResponseDTO> getEmployeeDutiesByCustomDateRange(
+            String organizationId, String empId, LocalDate startDate, LocalDate endDate);
+
+    List<EmployeeDutyResponseDTO> getDutiesByDate(String organizationId, LocalDate date);
+
+    List<EmployeeDutyResponseDTO> getDutiesByDateRangeAndStatus(
+            String organizationId, LocalDate startDate, LocalDate endDate, String status);
 }
