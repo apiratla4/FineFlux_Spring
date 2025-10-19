@@ -1,6 +1,5 @@
 package com.pulse.fineflux.domain;
 
-
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -17,11 +16,11 @@ import java.util.List;
 public class EmployeeDutyResponseDTO {
 
     private String id;
-    private String organizationId;
+    private String orgId;
     private String empId;
     private LocalDate dutyDate;
-    private String productId;
-    private List<String> gunIds;
+    private List<String> products;
+    private List<String> guns;
     private String shiftStart;
     private String shiftEnd;
     private Double totalHours;

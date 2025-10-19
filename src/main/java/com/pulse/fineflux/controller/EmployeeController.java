@@ -1,74 +1,124 @@
-// src/main/java/com/pulse/fineflux/controller/EmployeeController.java
 package com.pulse.fineflux.controller;
 
-import com.pulse.fineflux.domain.EmployeeCreateRequest;
-import com.pulse.fineflux.domain.EmployeeResponse;
-import com.pulse.fineflux.domain.EmployeeUpdateRequest;
-import com.pulse.fineflux.domain.ChangePasswordRequest;
-import org.springframework.http.ResponseEntity;
-import com.pulse.fineflux.service.EmployeeService;
+import com.pulse.fineflux.domain.EmployeeDutyCreateDTO;
+import com.pulse.fineflux.domain.EmployeeDutyResponseDTO;
+import com.pulse.fineflux.domain.EmployeeDutyUpdateDTO;
+import com.pulse.fineflux.service.EmployeeDutyService;
 import jakarta.validation.Valid;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-@Slf4j
+import java.time.LocalDate;
+import java.util.List;
+
 @RestController
-@RequestMapping("/api/organizations/{orgId}/employees")
-public class EmployeeController {
+@RequestMapping("/api/organizations/{orgId}/employee-duties")
+@CrossOrigin(origins = "*")
+public class EmployeeDutyController {
 
-    private final EmployeeService service;
-
-    public EmployeeController(EmployeeService service) {
-        this.service = service;
-    }
+    @Autowired
+    private EmployeeDutyService dutyService;
 
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public EmployeeResponse create(@PathVariable("orgId") String orgId, @Valid @RequestBody EmployeeCreateRequest req) {
-        log.info("HTTP POST employees orgId={} empId={} username={}", orgId, req.empId, req.username);
-        return service.create(orgId, req);
-    }
-
-    @GetMapping("/{id}")
-    public EmployeeResponse get(@PathVariable("orgId") String orgId, @PathVariable String id) {
-        log.debug("HTTP GET employees/{id} id={} orgId={}", id, orgId);
-        return service.get(orgId, id);
+    public ResponseEntity<EmployeeDutyResponseDTO> createDuty(
+            @PathVariable String orgId,
+            @Valid @RequestBody EmployeeDutyCreateDTO createDTO) {
+        createDTO.setOrgId(orgId);
+        EmployeeDutyResponseDTO response = dutyService.createDuty(createDTO);
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     @GetMapping
-    public Page<EmployeeResponse> list(@PathVariable("orgId") String orgId, Pageable pageable) {
-        log.debug("HTTP GET employees orgId={} page={} size={}", orgId, pageable.getPageNumber(), pageable.getPageSize());
-        return service.list(orgId, pageable);
+    public ResponseEntity<List<EmployeeDutyResponseDTO>> getAllDutiesByOrganization(
+            @PathVariable String orgId) {
+        List<EmployeeDutyResponseDTO> duties = dutyService.getDutiesByOrgId(orgId);
+        return ResponseEntity.ok(duties);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<EmployeeDutyResponseDTO> getDutyById(@PathVariable String id) {
+        EmployeeDutyResponseDTO duty = dutyService.getDutyById(id);
+        return ResponseEntity.ok(duty);
     }
 
     @PutMapping("/{id}")
-    public EmployeeResponse update(@PathVariable("orgId") String orgId, @PathVariable String id, @Valid @RequestBody EmployeeUpdateRequest req) {
-        log.info("HTTP PUT employees/{id} id={} orgId={}", id, orgId);
-        return service.update(orgId, id, req);
+    public ResponseEntity<EmployeeDutyResponseDTO> updateDuty(
+            @PathVariable String id,
+            @Valid @RequestBody EmployeeDutyUpdateDTO updateDTO) {
+        EmployeeDutyResponseDTO updated = dutyService.updateDuty(id, updateDTO);
+        return ResponseEntity.ok(updated);
     }
 
     @DeleteMapping("/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable("orgId") String orgId, @PathVariable String id) {
-        log.info("HTTP DELETE employees/{id} id={} orgId={}", id, orgId);
-        service.delete(orgId, id);
+    public ResponseEntity<Void> deleteDuty(@PathVariable String id) {
+        dutyService.deleteDuty(id);
+        return ResponseEntity.noContent().build();
     }
 
-    /**
-     * Change employee password
-     * PUT /api/organizations/{orgId}/employees/{id}/change-password
-     */
-    @PutMapping("/{id}/change-password")
-    public ResponseEntity<String> changePassword(
-            @PathVariable("orgId") String orgId,
-            @PathVariable("id") String id,
-            @Valid @RequestBody ChangePasswordRequest req
-    ) {
-        log.info("HTTP PUT employees/{id}/change-password id={} orgId={}", id, orgId);
-        service.changePassword(orgId, id, req);
-        return ResponseEntity.ok("Password changed successfully");
+    @GetMapping("/employee/{empId}")
+    public ResponseEntity<List<EmployeeDutyResponseDTO>> getDutiesByEmployee(
+            @PathVariable String orgId,
+            @PathVariable String empId) {
+        List<EmployeeDutyResponseDTO> duties = dutyService.getDutiesByOrgAndEmployee(orgId, empId);
+        return ResponseEntity.ok(duties);
+    }
+
+    @GetMapping("/employee/{empId}/date-range")
+    public ResponseEntity<List<EmployeeDutyResponseDTO>> getDutiesByEmployeeAndDateRange(
+            @PathVariable String empId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        List<EmployeeDutyResponseDTO> duties = dutyService.getDutiesByEmployeeAndDateRange(empId, startDate, endDate);
+        return ResponseEntity.ok(duties);
+    }
+
+    @GetMapping("/status/{status}")
+    public ResponseEntity<List<EmployeeDutyResponseDTO>> getDutiesByStatus(
+            @PathVariable String orgId,
+            @PathVariable String status) {
+        List<EmployeeDutyResponseDTO> duties = dutyService.getDutiesByStatus(orgId, status);
+        return ResponseEntity.ok(duties);
+    }
+
+    // New endpoints for time-based filtering
+    @GetMapping("/today")
+    public ResponseEntity<List<EmployeeDutyResponseDTO>> getDutiesForToday(
+            @PathVariable String orgId) {
+        List<EmployeeDutyResponseDTO> duties = dutyService.getDutiesForToday(orgId);
+        return ResponseEntity.ok(duties);
+    }
+
+    @GetMapping("/week")
+    public ResponseEntity<List<EmployeeDutyResponseDTO>> getDutiesForWeek(
+            @PathVariable String orgId) {
+        List<EmployeeDutyResponseDTO> duties = dutyService.getDutiesForWeek(orgId);
+        return ResponseEntity.ok(duties);
+    }
+
+    @GetMapping("/month")
+    public ResponseEntity<List<EmployeeDutyResponseDTO>> getDutiesForMonth(
+            @PathVariable String orgId) {
+        List<EmployeeDutyResponseDTO> duties = dutyService.getDutiesForMonth(orgId);
+        return ResponseEntity.ok(duties);
+    }
+
+    @GetMapping("/custom-date")
+    public ResponseEntity<List<EmployeeDutyResponseDTO>> getDutiesByCustomDate(
+            @PathVariable String orgId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        List<EmployeeDutyResponseDTO> duties = dutyService.getDutiesByCustomDate(orgId, date);
+        return ResponseEntity.ok(duties);
+    }
+
+    @GetMapping("/custom-range")
+    public ResponseEntity<List<EmployeeDutyResponseDTO>> getDutiesByCustomRange(
+            @PathVariable String orgId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        List<EmployeeDutyResponseDTO> duties = dutyService.getDutiesByCustomRange(orgId, startDate, endDate);
+        return ResponseEntity.ok(duties);
     }
 }
