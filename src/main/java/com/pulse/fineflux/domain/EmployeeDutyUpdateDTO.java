@@ -7,6 +7,7 @@ import lombok.Setter;
 
 import java.time.LocalDate;
 import java.util.List;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -14,8 +15,8 @@ import java.util.List;
 public class EmployeeDutyUpdateDTO {
 
     private LocalDate dutyDate;
-    private String productId;
-    private List<String> gunIds;
+    private List<String> products;
+    private List<String> guns;
     private String shiftStart;
     private String shiftEnd;
     private String status;
