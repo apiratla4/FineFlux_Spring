@@ -1,3 +1,4 @@
+// domain/EmployeeDuty.java
 package com.pulse.fineflux.entity;
 
 import lombok.AllArgsConstructor;
@@ -22,11 +23,11 @@ public class EmployeeDuty {
 
     @Id
     private String id;
-    private String orgId;
+    private String organizationId;
     private String empId;
     private LocalDate dutyDate;
-    private List<String> products;
-    private List<String> guns;
+    private String productId;
+    private List<String> gunIds;
     private String shiftStart;
     private String shiftEnd;
     private Double totalHours;
