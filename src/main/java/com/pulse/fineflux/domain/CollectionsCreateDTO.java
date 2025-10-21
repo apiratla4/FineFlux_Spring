@@ -19,4 +19,5 @@ public class CollectionsCreateDTO {
     private double shortCollections;
     private String productName;   // fetched from Product
     private String guns;
+    private double price;
 }
