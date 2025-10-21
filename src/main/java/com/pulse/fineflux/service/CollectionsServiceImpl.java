@@ -125,6 +125,7 @@ public class CollectionsServiceImpl implements CollectionsService {
         return responseDto;
     }
 
+
     @Override
     public CollectionsResponseDTO update(String id, CollectionsUpdateDTO dto) {
         Collections existing = collectionsRepository.findById(id)
