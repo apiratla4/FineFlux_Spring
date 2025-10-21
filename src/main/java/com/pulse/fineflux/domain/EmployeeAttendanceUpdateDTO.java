@@ -1,0 +1,22 @@
+package com.pulse.fineflux.domain;
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.time.LocalDateTime;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+public class EmployeeAttendanceUpdateDTO {
+    private String present;
+    private String absent;
+    private LocalDateTime checkIn;
+    private LocalDateTime checkOut;
+    private LocalDateTime breakIn;
+    private LocalDateTime breakOut;
+    private String description;
+}

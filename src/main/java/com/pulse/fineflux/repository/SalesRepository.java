@@ -51,5 +51,5 @@ public interface SalesRepository extends MongoRepository<Sales, String> {
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end
     );
-
 }
+

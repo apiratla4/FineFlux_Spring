@@ -5,14 +5,12 @@ import com.pulse.fineflux.domain.EmployeeDutyCreateDTO;
 import com.pulse.fineflux.domain.EmployeeDutyResponseDTO;
 import com.pulse.fineflux.domain.EmployeeDutyUpdateDTO;
 import com.pulse.fineflux.repository.EmployeeDutyRepository;
+import com.pulse.fineflux.service.EmployeeDutyService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.temporal.TemporalAdjusters;
-import java.time.DayOfWeek;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -24,14 +22,11 @@ public class EmployeeDutyServiceImpl implements EmployeeDutyService {
     @Autowired
     private EmployeeDutyRepository dutyRepository;
 
-    // IST Zone ID
-    private static final ZoneId IST_ZONE = ZoneId.of("Asia/Kolkata");
-
     @Override
     public EmployeeDutyResponseDTO createDuty(EmployeeDutyCreateDTO createDTO) {
         // Check if duty already exists
-        Optional<EmployeeDuty> existing = dutyRepository.findByOrgIdAndEmpIdAndDutyDate(
-                createDTO.getOrgId(),
+        Optional<EmployeeDuty> existing = dutyRepository.findByOrganizationIdAndEmpIdAndDutyDate(
+                createDTO.getOrganizationId(),
                 createDTO.getEmpId(),
                 createDTO.getDutyDate()
         );
@@ -60,11 +55,11 @@ public class EmployeeDutyServiceImpl implements EmployeeDutyService {
         if (updateDTO.getDutyDate() != null) {
             duty.setDutyDate(updateDTO.getDutyDate());
         }
-        if (updateDTO.getProducts() != null) {
-            duty.setProducts(updateDTO.getProducts());
+        if (updateDTO.getProductId() != null) {
+            duty.setProductId(updateDTO.getProductId());
         }
-        if (updateDTO.getGuns() != null) {
-            duty.setGuns(updateDTO.getGuns());
+        if (updateDTO.getGunIds() != null) {
+            duty.setGunIds(updateDTO.getGunIds());
         }
         if (updateDTO.getShiftStart() != null) {
             duty.setShiftStart(updateDTO.getShiftStart());
@@ -106,8 +101,8 @@ public class EmployeeDutyServiceImpl implements EmployeeDutyService {
     }
 
     @Override
-    public List<EmployeeDutyResponseDTO> getDutiesByOrgId(String orgId) {
-        return dutyRepository.findByOrgId(orgId).stream()
+    public List<EmployeeDutyResponseDTO> getDutiesByOrganizationId(String organizationId) {
+        return dutyRepository.findByOrganizationId(organizationId).stream()
                 .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
     }
@@ -120,8 +115,8 @@ public class EmployeeDutyServiceImpl implements EmployeeDutyService {
     }
 
     @Override
-    public List<EmployeeDutyResponseDTO> getDutiesByOrgAndEmployee(String orgId, String empId) {
-        return dutyRepository.findByOrgIdAndEmpId(orgId, empId).stream()
+    public List<EmployeeDutyResponseDTO> getDutiesByOrganizationAndEmployee(String organizationId, String empId) {
+        return dutyRepository.findByOrganizationIdAndEmpId(organizationId, empId).stream()
                 .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
     }
@@ -134,53 +129,8 @@ public class EmployeeDutyServiceImpl implements EmployeeDutyService {
     }
 
     @Override
-    public List<EmployeeDutyResponseDTO> getDutiesByStatus(String orgId, String status) {
-        return dutyRepository.findByOrgIdAndStatus(orgId, status).stream()
-                .map(this::convertToResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    // New time-based filtering methods
-    @Override
-    public List<EmployeeDutyResponseDTO> getDutiesForToday(String orgId) {
-        LocalDate today = LocalDate.now(IST_ZONE);
-        return dutyRepository.findByOrgIdAndDutyDate(orgId, today).stream()
-                .map(this::convertToResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<EmployeeDutyResponseDTO> getDutiesForWeek(String orgId) {
-        LocalDate today = LocalDate.now(IST_ZONE);
-        LocalDate startOfWeek = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-        LocalDate endOfWeek = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
-
-        return dutyRepository.findByOrgIdAndDutyDateBetween(orgId, startOfWeek, endOfWeek).stream()
-                .map(this::convertToResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<EmployeeDutyResponseDTO> getDutiesForMonth(String orgId) {
-        LocalDate today = LocalDate.now(IST_ZONE);
-        LocalDate startOfMonth = today.with(TemporalAdjusters.firstDayOfMonth());
-        LocalDate endOfMonth = today.with(TemporalAdjusters.lastDayOfMonth());
-
-        return dutyRepository.findByOrgIdAndDutyDateBetween(orgId, startOfMonth, endOfMonth).stream()
-                .map(this::convertToResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<EmployeeDutyResponseDTO> getDutiesByCustomDate(String orgId, LocalDate date) {
-        return dutyRepository.findByOrgIdAndDutyDate(orgId, date).stream()
-                .map(this::convertToResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<EmployeeDutyResponseDTO> getDutiesByCustomRange(String orgId, LocalDate startDate, LocalDate endDate) {
-        return dutyRepository.findByOrgIdAndDutyDateBetween(orgId, startDate, endDate).stream()
+    public List<EmployeeDutyResponseDTO> getDutiesByStatus(String organizationId, String status) {
+        return dutyRepository.findByOrganizationIdAndStatus(organizationId, status).stream()
                 .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
     }

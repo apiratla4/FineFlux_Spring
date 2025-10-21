@@ -11,12 +11,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.constraints.*;
 import java.time.LocalDate;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/organizations/{orgId}/employee-duties")
-
+@RequestMapping("/api/organizations/{organizationId}/employee-duties")
+@CrossOrigin(origins = "*")
 public class EmployeeDutyController {
 
     @Autowired
@@ -24,17 +25,17 @@ public class EmployeeDutyController {
 
     @PostMapping
     public ResponseEntity<EmployeeDutyResponseDTO> createDuty(
-            @PathVariable String orgId,
+            @PathVariable String organizationId,
             @Valid @RequestBody EmployeeDutyCreateDTO createDTO) {
-        createDTO.setOrgId(orgId);
+        createDTO.setOrganizationId(organizationId);
         EmployeeDutyResponseDTO response = dutyService.createDuty(createDTO);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     @GetMapping
     public ResponseEntity<List<EmployeeDutyResponseDTO>> getAllDutiesByOrganization(
-            @PathVariable String orgId) {
-        List<EmployeeDutyResponseDTO> duties = dutyService.getDutiesByOrgId(orgId);
+            @PathVariable String organizationId) {
+        List<EmployeeDutyResponseDTO> duties = dutyService.getDutiesByOrganizationId(organizationId);
         return ResponseEntity.ok(duties);
     }
 
@@ -60,9 +61,9 @@ public class EmployeeDutyController {
 
     @GetMapping("/employee/{empId}")
     public ResponseEntity<List<EmployeeDutyResponseDTO>> getDutiesByEmployee(
-            @PathVariable String orgId,
+            @PathVariable String organizationId,
             @PathVariable String empId) {
-        List<EmployeeDutyResponseDTO> duties = dutyService.getDutiesByOrgAndEmployee(orgId, empId);
+        List<EmployeeDutyResponseDTO> duties = dutyService.getDutiesByOrganizationAndEmployee(organizationId, empId);
         return ResponseEntity.ok(duties);
     }
 
@@ -77,48 +78,9 @@ public class EmployeeDutyController {
 
     @GetMapping("/status/{status}")
     public ResponseEntity<List<EmployeeDutyResponseDTO>> getDutiesByStatus(
-            @PathVariable String orgId,
+            @PathVariable String organizationId,
             @PathVariable String status) {
-        List<EmployeeDutyResponseDTO> duties = dutyService.getDutiesByStatus(orgId, status);
-        return ResponseEntity.ok(duties);
-    }
-
-    // New endpoints for time-based filtering
-    @GetMapping("/today")
-    public ResponseEntity<List<EmployeeDutyResponseDTO>> getDutiesForToday(
-            @PathVariable String orgId) {
-        List<EmployeeDutyResponseDTO> duties = dutyService.getDutiesForToday(orgId);
-        return ResponseEntity.ok(duties);
-    }
-
-    @GetMapping("/week")
-    public ResponseEntity<List<EmployeeDutyResponseDTO>> getDutiesForWeek(
-            @PathVariable String orgId) {
-        List<EmployeeDutyResponseDTO> duties = dutyService.getDutiesForWeek(orgId);
-        return ResponseEntity.ok(duties);
-    }
-
-    @GetMapping("/month")
-    public ResponseEntity<List<EmployeeDutyResponseDTO>> getDutiesForMonth(
-            @PathVariable String orgId) {
-        List<EmployeeDutyResponseDTO> duties = dutyService.getDutiesForMonth(orgId);
-        return ResponseEntity.ok(duties);
-    }
-
-    @GetMapping("/custom-date")
-    public ResponseEntity<List<EmployeeDutyResponseDTO>> getDutiesByCustomDate(
-            @PathVariable String orgId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        List<EmployeeDutyResponseDTO> duties = dutyService.getDutiesByCustomDate(orgId, date);
-        return ResponseEntity.ok(duties);
-    }
-
-    @GetMapping("/custom-range")
-    public ResponseEntity<List<EmployeeDutyResponseDTO>> getDutiesByCustomRange(
-            @PathVariable String orgId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        List<EmployeeDutyResponseDTO> duties = dutyService.getDutiesByCustomRange(orgId, startDate, endDate);
+        List<EmployeeDutyResponseDTO> duties = dutyService.getDutiesByStatus(organizationId, status);
         return ResponseEntity.ok(duties);
     }
 }
