@@ -38,7 +38,6 @@ public class CustomerServiceImpl implements CustomerService {
     public CustomerResponse create(String organizationId, CustomerCreateRequest req) {
         log.info("Creating customer orgId={} custId={} vehicle={}", organizationId, req.custId, req.customerVehicleNum);
 
-        // Validate unique custId
         if (repo.findByCustIdAndOrganizationId(req.custId, organizationId).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Customer ID already exists: " + req.custId);
         }
@@ -62,13 +61,12 @@ public class CustomerServiceImpl implements CustomerService {
         c = repo.save(c);
         log.info("Created customer id={} orgId={} custId={}", c.getId(), organizationId, c.getCustId());
 
-        // ✅ AUTO-CREATE OPENING BALANCE HISTORY (Only once, only if amount > 0)
         if (c.getAmountBorrowed() != null && c.getAmountBorrowed().compareTo(BigDecimal.ZERO) > 0) {
             CustomerHistory history = new CustomerHistory();
             history.setOrganizationId(organizationId);
             history.setCustomerId(c.getId());
             history.setCustId(c.getCustId());
-            history.setTransactionAmount(c.getAmountBorrowed().negate()); // Negative = borrowed
+            history.setTransactionAmount(c.getAmountBorrowed().negate());
             history.setTransactionDate(Instant.now());
             history.setCumulativeAmount(c.getAmountBorrowed());
             history.setNotes("Opening balance on customer creation");
@@ -93,7 +91,6 @@ public class CustomerServiceImpl implements CustomerService {
         return toResponse(c);
     }
 
-    // ✅ NEW: Date-based filters
     @Override
     public Page<CustomerResponse> listByDate(String organizationId, LocalDate date, Pageable pageable) {
         log.debug("Listing customers by date orgId={} date={}", organizationId, date);
@@ -161,33 +158,99 @@ public class CustomerServiceImpl implements CustomerService {
         return toResponse(c);
     }
 
+    // ✅ FIXED: Delete by ID with CASCADE delete
     @Override
     @Transactional
     public void delete(String organizationId, String id) {
-        log.info("Deleting customer id={} orgId={}", id, organizationId);
-        if (repo.findByIdAndOrganizationId(id, organizationId).isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer not found");
-        }
+        log.info("🔍 Starting delete for customer id={} orgId={}", id, organizationId);
+
+        Customer customer = repo.findByIdAndOrganizationId(id, organizationId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer not found"));
+
+        String custId = customer.getCustId();
+        log.info("📋 Found customer custId={} for deletion", custId);
+
+        // Check history count before deletion
+        long historyCount = historyRepo.countByOrganizationIdAndCustId(organizationId, custId);
+        log.info("📊 Found {} history record(s) for custId={}", historyCount, custId);
+
+        // Delete customer first
         repo.deleteById(id);
-        log.info("Deleted customer id={} orgId={}", id, organizationId);
+        log.info("✅ Deleted customer id={}", id);
+
+        // CASCADE DELETE history
+        if (custId != null && !custId.isEmpty()) {
+            long deletedHistory = historyRepo.deleteByOrganizationIdAndCustId(organizationId, custId);
+            log.info("🗑️ CASCADE DELETED {} history record(s) for custId={}", deletedHistory, custId);
+
+            // Verify deletion
+            long remainingHistory = historyRepo.countByOrganizationIdAndCustId(organizationId, custId);
+            if (remainingHistory > 0) {
+                log.error("❌ FAILED: {} history record(s) still remain for custId={}", remainingHistory, custId);
+            } else {
+                log.info("✅ Verified: All history deleted for custId={}", custId);
+            }
+        } else {
+            log.warn("⚠️ custId is null or empty, cannot delete history");
+        }
     }
 
+    // ✅ FIXED: Delete by custId with CASCADE delete
     @Override
     @Transactional
     public void deleteByCustId(String organizationId, String custId) {
-        log.info("Deleting customer by custId={} orgId={}", custId, organizationId);
+        log.info("🔍 Starting delete by custId={} orgId={}", custId, organizationId);
+
+        // Check history count before deletion
+        long historyCount = historyRepo.countByOrganizationIdAndCustId(organizationId, custId);
+        log.info("📊 Found {} history record(s) for custId={}", historyCount, custId);
+
+        // Delete customer(s)
         long removed = repo.deleteByCustIdAndOrganizationId(custId, organizationId);
+
         if (removed == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer not found");
         }
-        log.info("Deleted customer custId={} orgId={}", custId, organizationId);
+
+        log.info("✅ Deleted {} customer(s) with custId={}", removed, custId);
+
+        // CASCADE DELETE history
+        long deletedHistory = historyRepo.deleteByOrganizationIdAndCustId(organizationId, custId);
+        log.info("🗑️ CASCADE DELETED {} history record(s) for custId={}", deletedHistory, custId);
+
+        // Verify deletion
+        long remainingHistory = historyRepo.countByOrganizationIdAndCustId(organizationId, custId);
+        if (remainingHistory > 0) {
+            log.error("❌ FAILED: {} history record(s) still remain for custId={}", remainingHistory, custId);
+        } else {
+            log.info("✅ Verified: All history deleted for custId={}", custId);
+        }
     }
 
+    // ✅ FIXED: Delete all for organization with CASCADE delete
     @Override
+    @Transactional
     public long deleteAllForOrganization(String organizationId) {
-        log.warn("Bulk delete customers for orgId={}", organizationId);
+        log.warn("🔍 Bulk delete all customers for orgId={}", organizationId);
+
+        Page<Customer> allCustomers = repo.findAllByOrganizationId(organizationId, Pageable.unpaged());
+        log.info("📊 Found {} customer(s) to delete for orgId={}", allCustomers.getTotalElements(), organizationId);
+
+        long totalHistoryDeleted = 0;
+        for (Customer customer : allCustomers) {
+            if (customer.getCustId() != null && !customer.getCustId().isEmpty()) {
+                long historyCount = historyRepo.countByOrganizationIdAndCustId(organizationId, customer.getCustId());
+                log.info("📋 Customer custId={} has {} history record(s)", customer.getCustId(), historyCount);
+
+                long historyDeleted = historyRepo.deleteByOrganizationIdAndCustId(organizationId, customer.getCustId());
+                totalHistoryDeleted += historyDeleted;
+                log.info("🗑️ Deleted {} history record(s) for custId={}", historyDeleted, customer.getCustId());
+            }
+        }
+
         long removed = repo.deleteByOrganizationId(organizationId);
-        log.info("Bulk deleted {} customer(s) for orgId={}", removed, organizationId);
+
+        log.info("✅ Bulk deleted {} customer(s) and {} history record(s) for orgId={}", removed, totalHistoryDeleted, organizationId);
         return removed;
     }
 
