@@ -51,5 +51,9 @@ public interface SalesRepository extends MongoRepository<Sales, String> {
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end
     );
-}
 
+    // Case-insensitive search to match any variants like "Petrol", "petrol", etc.
+    List<Sales> findByOrganizationIdAndProductNameIgnoreCaseOrderByDateTime(
+            String organizationId, String productName
+    );
+}
