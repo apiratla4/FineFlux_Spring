@@ -1,0 +1,36 @@
+
+package com.pulse.fineflux.entity;
+
+import jakarta.validation.constraints.NotBlank;
+import lombok.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.Date;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@Document(collection = "products")
+public class Product {
+    @Id
+    private String id; // Mongo _id
+
+    @NotBlank
+    private String organizationId; // business key
+
+    @NotBlank
+    private String productName;
+    private LocalDateTime lastUpdated;
+    private Double price;
+    private Boolean status;
+    private BigDecimal tankCapacity;
+    private String description;
+    private String supplier;
+    private BigDecimal currentLevel;
+    private String metric;
+    private String empId;
+}
