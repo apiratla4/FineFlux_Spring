@@ -1,34 +1,47 @@
-// src/main/java/com/pulse/fineflux/service/impl/CustomerServiceImpl.java
 package com.pulse.fineflux.service.impl;
 
 import com.pulse.fineflux.domain.CustomerCreateRequest;
 import com.pulse.fineflux.domain.CustomerResponse;
 import com.pulse.fineflux.domain.CustomerUpdateRequest;
 import com.pulse.fineflux.entity.Customer;
+import com.pulse.fineflux.entity.CustomerHistory;
 import com.pulse.fineflux.repository.CustomerRepository;
+import com.pulse.fineflux.repository.CustomerHistoryRepository;
 import com.pulse.fineflux.service.CustomerService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
+import java.time.Instant;
+import java.time.LocalDate;
 
 @Slf4j
 @Service
 public class CustomerServiceImpl implements CustomerService {
 
     private final CustomerRepository repo;
+    private final CustomerHistoryRepository historyRepo;
 
-    public CustomerServiceImpl(CustomerRepository repo) {
+    public CustomerServiceImpl(CustomerRepository repo, CustomerHistoryRepository historyRepo) {
         this.repo = repo;
+        this.historyRepo = historyRepo;
     }
 
     @Override
+    @Transactional
     public CustomerResponse create(String organizationId, CustomerCreateRequest req) {
         log.info("Creating customer orgId={} custId={} vehicle={}", organizationId, req.custId, req.customerVehicleNum);
+
+        // Validate unique custId
+        if (repo.findByCustIdAndOrganizationId(req.custId, organizationId).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Customer ID already exists: " + req.custId);
+        }
 
         Customer c = new Customer();
         c.setOrganizationId(organizationId);
@@ -36,7 +49,7 @@ public class CustomerServiceImpl implements CustomerService {
         c.setCustomerName(req.customerName);
         c.setCustomerVehicleNum(req.customerVehicleNum);
         c.setEmpId(req.empId);
-        c.setAmountBorrowed(req.amountBorrowed);
+        c.setAmountBorrowed(req.amountBorrowed != null ? req.amountBorrowed : BigDecimal.ZERO);
         c.setTotalBorrowedAmount(req.amountBorrowed != null ? req.amountBorrowed : BigDecimal.ZERO);
         c.setBorrowDate(req.borrowDate);
         c.setDueDate(req.dueDate);
@@ -48,15 +61,28 @@ public class CustomerServiceImpl implements CustomerService {
 
         c = repo.save(c);
         log.info("Created customer id={} orgId={} custId={}", c.getId(), organizationId, c.getCustId());
+
+        // ✅ AUTO-CREATE OPENING BALANCE HISTORY (Only once, only if amount > 0)
+        if (c.getAmountBorrowed() != null && c.getAmountBorrowed().compareTo(BigDecimal.ZERO) > 0) {
+            CustomerHistory history = new CustomerHistory();
+            history.setOrganizationId(organizationId);
+            history.setCustomerId(c.getId());
+            history.setCustId(c.getCustId());
+            history.setTransactionAmount(c.getAmountBorrowed().negate()); // Negative = borrowed
+            history.setTransactionDate(Instant.now());
+            history.setCumulativeAmount(c.getAmountBorrowed());
+            history.setNotes("Opening balance on customer creation");
+            historyRepo.save(history);
+            log.info("Created opening balance history for custId={} amount={}", c.getCustId(), c.getAmountBorrowed());
+        }
+
         return toResponse(c);
     }
 
     @Override
-    public long deleteAllForOrganization(String organizationId) {
-        log.warn("Bulk delete customers for orgId={}", organizationId);
-        long removed = repo.deleteByOrganizationId(organizationId);
-        log.info("Bulk deleted {} customer(s) for orgId={}", removed, organizationId);
-        return removed;
+    public Page<CustomerResponse> list(String organizationId, Pageable pageable) {
+        log.debug("Listing customers orgId={}", organizationId);
+        return repo.findAllByOrganizationId(organizationId, pageable).map(this::toResponse);
     }
 
     @Override
@@ -67,13 +93,46 @@ public class CustomerServiceImpl implements CustomerService {
         return toResponse(c);
     }
 
+    // ✅ NEW: Date-based filters
     @Override
-    public Page<CustomerResponse> list(String organizationId, Pageable pageable) {
-        log.debug("Listing customers orgId={} page={} size={}", organizationId, pageable.getPageNumber(), pageable.getPageSize());
-        return repo.findAllByOrganizationId(organizationId, pageable).map(this::toResponse);
+    public Page<CustomerResponse> listByDate(String organizationId, LocalDate date, Pageable pageable) {
+        log.debug("Listing customers by date orgId={} date={}", organizationId, date);
+        return repo.findByOrganizationIdAndBorrowDate(organizationId, date, pageable).map(this::toResponse);
     }
 
     @Override
+    public Page<CustomerResponse> listByDateRange(String organizationId, LocalDate startDate, LocalDate endDate, Pageable pageable) {
+        log.debug("Listing customers by date range orgId={} from={} to={}", organizationId, startDate, endDate);
+        return repo.findByOrganizationIdAndBorrowDateBetween(organizationId, startDate, endDate, pageable).map(this::toResponse);
+    }
+
+    @Override
+    public Page<CustomerResponse> listToday(String organizationId, Pageable pageable) {
+        LocalDate today = LocalDate.now();
+        log.debug("Listing today's customers orgId={} date={}", organizationId, today);
+        return listByDate(organizationId, today, pageable);
+    }
+
+    @Override
+    public Page<CustomerResponse> listThisWeek(String organizationId, Pageable pageable) {
+        LocalDate today = LocalDate.now();
+        LocalDate startOfWeek = today.with(DayOfWeek.MONDAY);
+        LocalDate endOfWeek = today.with(DayOfWeek.SUNDAY);
+        log.debug("Listing this week's customers orgId={} from={} to={}", organizationId, startOfWeek, endOfWeek);
+        return listByDateRange(organizationId, startOfWeek, endOfWeek, pageable);
+    }
+
+    @Override
+    public Page<CustomerResponse> listThisMonth(String organizationId, Pageable pageable) {
+        LocalDate today = LocalDate.now();
+        LocalDate startOfMonth = today.withDayOfMonth(1);
+        LocalDate endOfMonth = today.withDayOfMonth(today.lengthOfMonth());
+        log.debug("Listing this month's customers orgId={} from={} to={}", organizationId, startOfMonth, endOfMonth);
+        return listByDateRange(organizationId, startOfMonth, endOfMonth, pageable);
+    }
+
+    @Override
+    @Transactional
     public CustomerResponse update(String organizationId, String id, CustomerUpdateRequest req) {
         log.info("Updating customer id={} orgId={}", id, organizationId);
         Customer c = repo.findByIdAndOrganizationId(id, organizationId)
@@ -103,6 +162,7 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
+    @Transactional
     public void delete(String organizationId, String id) {
         log.info("Deleting customer id={} orgId={}", id, organizationId);
         if (repo.findByIdAndOrganizationId(id, organizationId).isEmpty()) {
@@ -112,8 +172,8 @@ public class CustomerServiceImpl implements CustomerService {
         log.info("Deleted customer id={} orgId={}", id, organizationId);
     }
 
-    // NEW: delete by external custId (used by UI)
     @Override
+    @Transactional
     public void deleteByCustId(String organizationId, String custId) {
         log.info("Deleting customer by custId={} orgId={}", custId, organizationId);
         long removed = repo.deleteByCustIdAndOrganizationId(custId, organizationId);
@@ -124,6 +184,15 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
+    public long deleteAllForOrganization(String organizationId) {
+        log.warn("Bulk delete customers for orgId={}", organizationId);
+        long removed = repo.deleteByOrganizationId(organizationId);
+        log.info("Bulk deleted {} customer(s) for orgId={}", removed, organizationId);
+        return removed;
+    }
+
+    @Override
+    @Transactional
     public CustomerResponse updateTotalBorrowedAmount(String organizationId, String custId, BigDecimal totalBorrowedAmount) {
         Customer c = repo.findByCustIdAndOrganizationId(custId, organizationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer not found"));
@@ -168,7 +237,7 @@ public class CustomerServiceImpl implements CustomerService {
         r.phoneNumber = c.getPhoneNumber();
         r.email = c.getEmail();
         r.notes = c.getNotes();
-        if (c.getAddress() != null) { // FIX: add parentheses + null check
+        if (c.getAddress() != null) {
             CustomerCreateRequest.AddressDTO a = new CustomerCreateRequest.AddressDTO();
             a.line1 = c.getAddress().getLine1();
             a.line2 = c.getAddress().getLine2();

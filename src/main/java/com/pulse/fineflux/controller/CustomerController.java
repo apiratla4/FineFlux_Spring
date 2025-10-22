@@ -1,18 +1,18 @@
-// src/main/java/com/pulse/fineflux/controller/CustomerController.java
 package com.pulse.fineflux.controller;
 
 import com.pulse.fineflux.domain.CustomerCreateRequest;
-import com.pulse.fineflux.domain.CustomerHistoryCreateRequest;
 import com.pulse.fineflux.domain.CustomerResponse;
 import com.pulse.fineflux.domain.CustomerUpdateRequest;
-import com.pulse.fineflux.service.CustomerHistoryService;
 import com.pulse.fineflux.service.CustomerService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
 
 @Slf4j
 @RestController
@@ -20,12 +20,12 @@ import org.springframework.web.bind.annotation.*;
 public class CustomerController {
 
     private final CustomerService customerService;
-    private final CustomerHistoryService historyService;
 
-    public CustomerController(CustomerService customerService, CustomerHistoryService historyService) {
+    public CustomerController(CustomerService customerService) {
         this.customerService = customerService;
-        this.historyService = historyService;
     }
+
+    // ========== BASIC CRUD ==========
 
     @GetMapping
     public Page<CustomerResponse> list(@PathVariable("orgId") String orgId, Pageable pageable) {
@@ -40,18 +40,7 @@ public class CustomerController {
     @PostMapping
     public CustomerResponse create(@PathVariable("orgId") String orgId,
                                    @Valid @RequestBody CustomerCreateRequest req) {
-        CustomerResponse created = customerService.create(orgId, req);
-        if (created.amountBorrowed != null && created.amountBorrowed.signum() > 0) {
-            CustomerHistoryCreateRequest hReq = new CustomerHistoryCreateRequest();
-            hReq.custId = created.custId;
-            // If your backend expects +payment and -borrow, ensure this sign matches domain rules.
-            // UI sends borrow as negative; keep consistency service-side as well.
-            hReq.transactionAmount = created.amountBorrowed.negate(); // optional: align sign convention
-            hReq.transactionDate = java.time.Instant.now();
-            hReq.notes = "Opening balance on customer creation";
-            historyService.addTransaction(orgId, hReq);
-        }
-        return created;
+        return customerService.create(orgId, req);
     }
 
     @PutMapping("/{id}")
@@ -61,7 +50,6 @@ public class CustomerController {
         return customerService.update(orgId, id, req);
     }
 
-    // Existing: delete by internal id
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable("orgId") String orgId,
                                        @PathVariable String id) {
@@ -69,19 +57,9 @@ public class CustomerController {
         return ResponseEntity.noContent().build();
     }
 
-    // New: delete by external custId used by UI
     @DeleteMapping("/by-cust/{custId}")
     public ResponseEntity<Void> deleteByCustId(@PathVariable("orgId") String orgId,
                                                @PathVariable String custId) {
-        customerService.deleteByCustId(orgId, custId);
-        return ResponseEntity.noContent().build();
-    }
-
-    // Optional: delete via query param (alternative pattern)
-    // DELETE /api/organizations/{orgId}/customers?custId=ABC123
-    @DeleteMapping(params = "custId")
-    public ResponseEntity<Void> deleteByCustIdQuery(@PathVariable("orgId") String orgId,
-                                                    @RequestParam("custId") String custId) {
         customerService.deleteByCustId(orgId, custId);
         return ResponseEntity.noContent().build();
     }
@@ -90,5 +68,49 @@ public class CustomerController {
     public ResponseEntity<Void> deleteAllForOrg(@PathVariable("orgId") String orgId) {
         customerService.deleteAllForOrganization(orgId);
         return ResponseEntity.noContent().build();
+    }
+
+    // ========== ✅ NEW: DATE FILTERS ==========
+
+    // GET /api/organizations/{orgId}/customers/filter/today
+    @GetMapping("/filter/today")
+    public Page<CustomerResponse> listToday(@PathVariable("orgId") String orgId, Pageable pageable) {
+        log.info("Fetching today's customers for orgId={}", orgId);
+        return customerService.listToday(orgId, pageable);
+    }
+
+    // GET /api/organizations/{orgId}/customers/filter/week
+    @GetMapping("/filter/week")
+    public Page<CustomerResponse> listThisWeek(@PathVariable("orgId") String orgId, Pageable pageable) {
+        log.info("Fetching this week's customers for orgId={}", orgId);
+        return customerService.listThisWeek(orgId, pageable);
+    }
+
+    // GET /api/organizations/{orgId}/customers/filter/month
+    @GetMapping("/filter/month")
+    public Page<CustomerResponse> listThisMonth(@PathVariable("orgId") String orgId, Pageable pageable) {
+        log.info("Fetching this month's customers for orgId={}", orgId);
+        return customerService.listThisMonth(orgId, pageable);
+    }
+
+    // GET /api/organizations/{orgId}/customers/filter/date?date=2025-10-22
+    @GetMapping("/filter/date")
+    public Page<CustomerResponse> listByDate(
+            @PathVariable("orgId") String orgId,
+            @RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            Pageable pageable) {
+        log.info("Fetching customers by date for orgId={} date={}", orgId, date);
+        return customerService.listByDate(orgId, date, pageable);
+    }
+
+    // GET /api/organizations/{orgId}/customers/filter/range?startDate=2025-10-01&endDate=2025-10-31
+    @GetMapping("/filter/range")
+    public Page<CustomerResponse> listByDateRange(
+            @PathVariable("orgId") String orgId,
+            @RequestParam("startDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            Pageable pageable) {
+        log.info("Fetching customers by date range for orgId={} from={} to={}", orgId, startDate, endDate);
+        return customerService.listByDateRange(orgId, startDate, endDate, pageable);
     }
 }
