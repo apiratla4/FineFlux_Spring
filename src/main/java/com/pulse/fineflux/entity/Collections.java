@@ -28,4 +28,5 @@ public class Collections {
     private String guns;
     private double expectedTotal;
     private double receivedTotal;
+    private double accessCollections;
 }

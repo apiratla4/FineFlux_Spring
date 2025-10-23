@@ -20,4 +20,6 @@ public class CollectionsCreateDTO {
     private String productName;   // fetched from Product
     private String guns;
     private double price;
+    private double accessCollections;
+
 }

@@ -1,46 +1,34 @@
-package com.pulse.fineflux.service.impl;
+// src/main/java/com/pulse/fineflux/service/impl/CustomerServiceImpl.java
+package com.pulse.fineflux.service;
 
 import com.pulse.fineflux.domain.CustomerCreateRequest;
 import com.pulse.fineflux.domain.CustomerResponse;
 import com.pulse.fineflux.domain.CustomerUpdateRequest;
 import com.pulse.fineflux.entity.Customer;
-import com.pulse.fineflux.entity.CustomerHistory;
 import com.pulse.fineflux.repository.CustomerRepository;
-import com.pulse.fineflux.repository.CustomerHistoryRepository;
 import com.pulse.fineflux.service.CustomerService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
-import java.time.DayOfWeek;
-import java.time.Instant;
-import java.time.LocalDate;
 
 @Slf4j
 @Service
 public class CustomerServiceImpl implements CustomerService {
 
     private final CustomerRepository repo;
-    private final CustomerHistoryRepository historyRepo;
 
-    public CustomerServiceImpl(CustomerRepository repo, CustomerHistoryRepository historyRepo) {
+    public CustomerServiceImpl(CustomerRepository repo) {
         this.repo = repo;
-        this.historyRepo = historyRepo;
     }
 
     @Override
-    @Transactional
     public CustomerResponse create(String organizationId, CustomerCreateRequest req) {
         log.info("Creating customer orgId={} custId={} vehicle={}", organizationId, req.custId, req.customerVehicleNum);
-
-        if (repo.findByCustIdAndOrganizationId(req.custId, organizationId).isPresent()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Customer ID already exists: " + req.custId);
-        }
 
         Customer c = new Customer();
         c.setOrganizationId(organizationId);
@@ -48,7 +36,7 @@ public class CustomerServiceImpl implements CustomerService {
         c.setCustomerName(req.customerName);
         c.setCustomerVehicleNum(req.customerVehicleNum);
         c.setEmpId(req.empId);
-        c.setAmountBorrowed(req.amountBorrowed != null ? req.amountBorrowed : BigDecimal.ZERO);
+        c.setAmountBorrowed(req.amountBorrowed);
         c.setTotalBorrowedAmount(req.amountBorrowed != null ? req.amountBorrowed : BigDecimal.ZERO);
         c.setBorrowDate(req.borrowDate);
         c.setDueDate(req.dueDate);
@@ -60,27 +48,15 @@ public class CustomerServiceImpl implements CustomerService {
 
         c = repo.save(c);
         log.info("Created customer id={} orgId={} custId={}", c.getId(), organizationId, c.getCustId());
-
-        if (c.getAmountBorrowed() != null && c.getAmountBorrowed().compareTo(BigDecimal.ZERO) > 0) {
-            CustomerHistory history = new CustomerHistory();
-            history.setOrganizationId(organizationId);
-            history.setCustomerId(c.getId());
-            history.setCustId(c.getCustId());
-            history.setTransactionAmount(c.getAmountBorrowed().negate());
-            history.setTransactionDate(Instant.now());
-            history.setCumulativeAmount(c.getAmountBorrowed());
-            history.setNotes("Opening balance on customer creation");
-            historyRepo.save(history);
-            log.info("Created opening balance history for custId={} amount={}", c.getCustId(), c.getAmountBorrowed());
-        }
-
         return toResponse(c);
     }
 
     @Override
-    public Page<CustomerResponse> list(String organizationId, Pageable pageable) {
-        log.debug("Listing customers orgId={}", organizationId);
-        return repo.findAllByOrganizationId(organizationId, pageable).map(this::toResponse);
+    public long deleteAllForOrganization(String organizationId) {
+        log.warn("Bulk delete customers for orgId={}", organizationId);
+        long removed = repo.deleteByOrganizationId(organizationId);
+        log.info("Bulk deleted {} customer(s) for orgId={}", removed, organizationId);
+        return removed;
     }
 
     @Override
@@ -92,44 +68,12 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
-    public Page<CustomerResponse> listByDate(String organizationId, LocalDate date, Pageable pageable) {
-        log.debug("Listing customers by date orgId={} date={}", organizationId, date);
-        return repo.findByOrganizationIdAndBorrowDate(organizationId, date, pageable).map(this::toResponse);
+    public Page<CustomerResponse> list(String organizationId, Pageable pageable) {
+        log.debug("Listing customers orgId={} page={} size={}", organizationId, pageable.getPageNumber(), pageable.getPageSize());
+        return repo.findAllByOrganizationId(organizationId, pageable).map(this::toResponse);
     }
 
     @Override
-    public Page<CustomerResponse> listByDateRange(String organizationId, LocalDate startDate, LocalDate endDate, Pageable pageable) {
-        log.debug("Listing customers by date range orgId={} from={} to={}", organizationId, startDate, endDate);
-        return repo.findByOrganizationIdAndBorrowDateBetween(organizationId, startDate, endDate, pageable).map(this::toResponse);
-    }
-
-    @Override
-    public Page<CustomerResponse> listToday(String organizationId, Pageable pageable) {
-        LocalDate today = LocalDate.now();
-        log.debug("Listing today's customers orgId={} date={}", organizationId, today);
-        return listByDate(organizationId, today, pageable);
-    }
-
-    @Override
-    public Page<CustomerResponse> listThisWeek(String organizationId, Pageable pageable) {
-        LocalDate today = LocalDate.now();
-        LocalDate startOfWeek = today.with(DayOfWeek.MONDAY);
-        LocalDate endOfWeek = today.with(DayOfWeek.SUNDAY);
-        log.debug("Listing this week's customers orgId={} from={} to={}", organizationId, startOfWeek, endOfWeek);
-        return listByDateRange(organizationId, startOfWeek, endOfWeek, pageable);
-    }
-
-    @Override
-    public Page<CustomerResponse> listThisMonth(String organizationId, Pageable pageable) {
-        LocalDate today = LocalDate.now();
-        LocalDate startOfMonth = today.withDayOfMonth(1);
-        LocalDate endOfMonth = today.withDayOfMonth(today.lengthOfMonth());
-        log.debug("Listing this month's customers orgId={} from={} to={}", organizationId, startOfMonth, endOfMonth);
-        return listByDateRange(organizationId, startOfMonth, endOfMonth, pageable);
-    }
-
-    @Override
-    @Transactional
     public CustomerResponse update(String organizationId, String id, CustomerUpdateRequest req) {
         log.info("Updating customer id={} orgId={}", id, organizationId);
         Customer c = repo.findByIdAndOrganizationId(id, organizationId)
@@ -158,104 +102,28 @@ public class CustomerServiceImpl implements CustomerService {
         return toResponse(c);
     }
 
-    // ✅ FIXED: Delete by ID with CASCADE delete
     @Override
-    @Transactional
     public void delete(String organizationId, String id) {
-        log.info("🔍 Starting delete for customer id={} orgId={}", id, organizationId);
-
-        Customer customer = repo.findByIdAndOrganizationId(id, organizationId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer not found"));
-
-        String custId = customer.getCustId();
-        log.info("📋 Found customer custId={} for deletion", custId);
-
-        // Check history count before deletion
-        long historyCount = historyRepo.countByOrganizationIdAndCustId(organizationId, custId);
-        log.info("📊 Found {} history record(s) for custId={}", historyCount, custId);
-
-        // Delete customer first
-        repo.deleteById(id);
-        log.info("✅ Deleted customer id={}", id);
-
-        // CASCADE DELETE history
-        if (custId != null && !custId.isEmpty()) {
-            long deletedHistory = historyRepo.deleteByOrganizationIdAndCustId(organizationId, custId);
-            log.info("🗑️ CASCADE DELETED {} history record(s) for custId={}", deletedHistory, custId);
-
-            // Verify deletion
-            long remainingHistory = historyRepo.countByOrganizationIdAndCustId(organizationId, custId);
-            if (remainingHistory > 0) {
-                log.error("❌ FAILED: {} history record(s) still remain for custId={}", remainingHistory, custId);
-            } else {
-                log.info("✅ Verified: All history deleted for custId={}", custId);
-            }
-        } else {
-            log.warn("⚠️ custId is null or empty, cannot delete history");
+        log.info("Deleting customer id={} orgId={}", id, organizationId);
+        if (repo.findByIdAndOrganizationId(id, organizationId).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer not found");
         }
+        repo.deleteById(id);
+        log.info("Deleted customer id={} orgId={}", id, organizationId);
     }
 
-    // ✅ FIXED: Delete by custId with CASCADE delete
+    // NEW: delete by external custId (used by UI)
     @Override
-    @Transactional
     public void deleteByCustId(String organizationId, String custId) {
-        log.info("🔍 Starting delete by custId={} orgId={}", custId, organizationId);
-
-        // Check history count before deletion
-        long historyCount = historyRepo.countByOrganizationIdAndCustId(organizationId, custId);
-        log.info("📊 Found {} history record(s) for custId={}", historyCount, custId);
-
-        // Delete customer(s)
+        log.info("Deleting customer by custId={} orgId={}", custId, organizationId);
         long removed = repo.deleteByCustIdAndOrganizationId(custId, organizationId);
-
         if (removed == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer not found");
         }
-
-        log.info("✅ Deleted {} customer(s) with custId={}", removed, custId);
-
-        // CASCADE DELETE history
-        long deletedHistory = historyRepo.deleteByOrganizationIdAndCustId(organizationId, custId);
-        log.info("🗑️ CASCADE DELETED {} history record(s) for custId={}", deletedHistory, custId);
-
-        // Verify deletion
-        long remainingHistory = historyRepo.countByOrganizationIdAndCustId(organizationId, custId);
-        if (remainingHistory > 0) {
-            log.error("❌ FAILED: {} history record(s) still remain for custId={}", remainingHistory, custId);
-        } else {
-            log.info("✅ Verified: All history deleted for custId={}", custId);
-        }
-    }
-
-    // ✅ FIXED: Delete all for organization with CASCADE delete
-    @Override
-    @Transactional
-    public long deleteAllForOrganization(String organizationId) {
-        log.warn("🔍 Bulk delete all customers for orgId={}", organizationId);
-
-        Page<Customer> allCustomers = repo.findAllByOrganizationId(organizationId, Pageable.unpaged());
-        log.info("📊 Found {} customer(s) to delete for orgId={}", allCustomers.getTotalElements(), organizationId);
-
-        long totalHistoryDeleted = 0;
-        for (Customer customer : allCustomers) {
-            if (customer.getCustId() != null && !customer.getCustId().isEmpty()) {
-                long historyCount = historyRepo.countByOrganizationIdAndCustId(organizationId, customer.getCustId());
-                log.info("📋 Customer custId={} has {} history record(s)", customer.getCustId(), historyCount);
-
-                long historyDeleted = historyRepo.deleteByOrganizationIdAndCustId(organizationId, customer.getCustId());
-                totalHistoryDeleted += historyDeleted;
-                log.info("🗑️ Deleted {} history record(s) for custId={}", historyDeleted, customer.getCustId());
-            }
-        }
-
-        long removed = repo.deleteByOrganizationId(organizationId);
-
-        log.info("✅ Bulk deleted {} customer(s) and {} history record(s) for orgId={}", removed, totalHistoryDeleted, organizationId);
-        return removed;
+        log.info("Deleted customer custId={} orgId={}", custId, organizationId);
     }
 
     @Override
-    @Transactional
     public CustomerResponse updateTotalBorrowedAmount(String organizationId, String custId, BigDecimal totalBorrowedAmount) {
         Customer c = repo.findByCustIdAndOrganizationId(custId, organizationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer not found"));
@@ -300,7 +168,7 @@ public class CustomerServiceImpl implements CustomerService {
         r.phoneNumber = c.getPhoneNumber();
         r.email = c.getEmail();
         r.notes = c.getNotes();
-        if (c.getAddress() != null) {
+        if (c.getAddress() != null) { // FIX: add parentheses + null check
             CustomerCreateRequest.AddressDTO a = new CustomerCreateRequest.AddressDTO();
             a.line1 = c.getAddress().getLine1();
             a.line2 = c.getAddress().getLine2();
