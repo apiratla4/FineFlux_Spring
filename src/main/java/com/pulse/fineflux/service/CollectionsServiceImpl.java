@@ -74,20 +74,35 @@ public class CollectionsServiceImpl implements CollectionsService {
                     sale.getDateTime(), sale.getPrice(), sale.getSalesInRupees());
         }
 
-        // Guarantee field normalization and price match
+        final double EPSILON = 0.01; // Accept 1 paisa as equal! Change as needed.
+
         Sales matchingSale = salesList.stream()
-                .filter(s -> s.getProductName().trim().toLowerCase().equals(normProduct)
-                        && s.getGuns().trim().toLowerCase().equals(normGuns)
-                        && s.getPrice() == dto.getPrice())
+                .filter(s -> s.getProductName().trim().equalsIgnoreCase(normProduct)
+                        && s.getGuns().trim().equalsIgnoreCase(normGuns)
+                        && Math.abs(s.getPrice() - dto.getPrice()) < EPSILON
+                        && !s.getDateTime().isAfter(istDateTime)) // Key line: only sales up to collection time!
                 .max(Comparator.comparing(Sales::getDateTime))
                 .orElse(null);
+
 
         double expectedTotal = (matchingSale != null) ? matchingSale.getSalesInRupees() : 0.0;
         double receivedTotal = dto.getCashReceived() + dto.getPhonePay() + dto.getCreditCard();
 
+        double difference = receivedTotal - expectedTotal;
+        double accessCollections;
+
+        if (difference > 0) {
+            accessCollections = difference;
+            entity.setAccessCollections(accessCollections); // <--- persist excess!
+            entity.setShortCollections(0.0);
+        } else {
+            accessCollections = 0.0;
+            entity.setAccessCollections(0.0);
+            entity.setShortCollections(expectedTotal - receivedTotal);
+        }
+
         entity.setExpectedTotal(expectedTotal);
         entity.setReceivedTotal(receivedTotal);
-        entity.setShortCollections(expectedTotal - receivedTotal);
 
         Collections saved = collectionsRepository.save(entity);
 
@@ -122,6 +137,8 @@ public class CollectionsServiceImpl implements CollectionsService {
         CollectionsResponseDTO responseDto = convertToResponse(saved);
         responseDto.setProductName(displayProduct);
         responseDto.setGuns(displayGuns);
+        responseDto.setAccessCollections(accessCollections); // ONLY for UI/report, not stored in mongo
+
         return responseDto;
     }
 
@@ -198,4 +215,5 @@ public class CollectionsServiceImpl implements CollectionsService {
         BeanUtils.copyProperties(entity, dto);
         return dto;
     }
+
 }

@@ -1,3 +1,4 @@
+// src/main/java/com/pulse/fineflux/service/CustomerService.java
 package com.pulse.fineflux.service;
 
 import com.pulse.fineflux.domain.CustomerCreateRequest;
@@ -7,7 +8,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 
 public interface CustomerService {
     CustomerResponse create(String organizationId, CustomerCreateRequest req);
@@ -16,13 +16,10 @@ public interface CustomerService {
     CustomerResponse update(String organizationId, String id, CustomerUpdateRequest req);
     void delete(String organizationId, String id);
     long deleteAllForOrganization(String organizationId);
-    void deleteByCustId(String organizationId, String custId);
-    CustomerResponse updateTotalBorrowedAmount(String organizationId, String custId, BigDecimal totalBorrowedAmount);
 
-    // ✅ NEW: Date-based filters
-    Page<CustomerResponse> listByDate(String organizationId, LocalDate date, Pageable pageable);
-    Page<CustomerResponse> listByDateRange(String organizationId, LocalDate startDate, LocalDate endDate, Pageable pageable);
-    Page<CustomerResponse> listToday(String organizationId, Pageable pageable);
-    Page<CustomerResponse> listThisWeek(String organizationId, Pageable pageable);
-    Page<CustomerResponse> listThisMonth(String organizationId, Pageable pageable);
+    // NEW: delete by external custId (used by UI)
+    void deleteByCustId(String organizationId, String custId);
+
+    // sync helper: update only totalBorrowedAmount by business custId
+    CustomerResponse updateTotalBorrowedAmount(String organizationId, String custId, BigDecimal totalBorrowedAmount);
 }

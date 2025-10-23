@@ -22,4 +22,5 @@ public class CollectionsResponseDTO {
     private double receivedTotal;
     private String productName;   // fetched from Product
     private String guns;
+    private double accessCollections;
 }
