@@ -13,6 +13,7 @@ import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -26,6 +27,9 @@ public class SalesServiceImpl implements SalesService {
     private final InventoryRepository inventoryRepository;
     private final InventoryLogRepository inventoryLogRepository;
     private final FinanceSummaryService financeSummaryService;
+    private  final  SaleHistoryRepository saleHistoryRepository;
+    private final CollectionsRepository collectionsRepository;
+
 
     @Override
     public SalesResponseDTO createSale(SalesCreateDTO dto) {
@@ -236,15 +240,82 @@ public class SalesServiceImpl implements SalesService {
     }
 
     @Override
-    public void deleteSale(String id) {
+    public void deleteSale(String saleId) {
         try {
-            log.info("Deleting sale id={}", id);
-            salesRepository.deleteById(id);
+            // 1. Find the sale being deleted
+            Sales sale = salesRepository.findById(saleId)
+                    .orElseThrow(() -> new RuntimeException("Sale not found"));
+
+            String orgId = sale.getOrganizationId();
+            String productName = sale.getProductName().trim().toLowerCase(); // <-- NORMALIZE
+            String guns = sale.getGuns().trim().toLowerCase(); // <-- NORMALIZE
+            double addBackLiters = sale.getSalesInLiters();
+            LocalDateTime saleDateTime = sale.getDateTime();
+
+            // 2. Delete related Collections by orgId, normalized productName, normalized guns
+            List<Collections> collections = collectionsRepository.findAllByOrganizationIdAndProductNameAndGuns(
+                    orgId, productName, guns
+            );
+            log.info("Found {} collections to delete for saleId={}", collections.size(), saleId);
+            collections.forEach(collection -> collectionsRepository.deleteById(collection.getId()));
+
+// 3. Delete related SaleHistory records by orgId, productName, guns (skip dateTime)
+            List<SaleHistory> histories = saleHistoryRepository.findAllByOrganizationIdAndProductNameAndGuns(
+                    orgId, productName, guns
+            );
+            log.info("Found {} SaleHistory records to delete for saleId={}", histories.size(), saleId);
+            histories.forEach(history -> saleHistoryRepository.deleteById(history.getId()));
+
+
+            // 3. Update Product's currentLevel
+            Product product = productRepository.findByOrganizationId(orgId).stream()
+                    .filter(p -> p.getProductName().equalsIgnoreCase(productName))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Product not found"));
+
+            BigDecimal productLevel = product.getCurrentLevel() != null ? product.getCurrentLevel() : BigDecimal.ZERO;
+            product.setCurrentLevel(productLevel.add(BigDecimal.valueOf(addBackLiters)));
+            productRepository.save(product);
+
+            // 4. Update all Inventory records for org+product
+            List<Inventory> inventories = inventoryRepository.findAllByOrganizationIdAndProductId(orgId, product.getId());
+            for (Inventory inv : inventories) {
+                BigDecimal invLevel = inv.getCurrentLevel() != null ? inv.getCurrentLevel() : BigDecimal.ZERO;
+                inv.setCurrentLevel(invLevel.add(BigDecimal.valueOf(addBackLiters)));
+
+                // It is good practice to update stockValue as well (if price changes, recalc here as needed)
+                BigDecimal price = product.getPrice() != null ? BigDecimal.valueOf(product.getPrice()) : BigDecimal.ZERO;
+                inv.setStockValue(price.multiply(inv.getCurrentLevel()));
+
+                inventoryRepository.save(inv);
+
+                // Optionally, insert reversal log
+                InventoryLog log = InventoryLog.builder()
+                        .inventoryId(inv.getInventoryId())
+                        .organizationId(inv.getOrganizationId())
+                        .productId(inv.getProductId())
+                        .productName(inv.getProductName())
+                        .lastUpdated(LocalDateTime.now())
+                        .empId(sale.getEmpId())
+                        .currentLevel(inv.getCurrentLevel())
+                        .stockValue(inv.getStockValue())
+                        .metric(inv.getMetric())
+                        .status(inv.getStatus())
+                        .tankCapacity(inv.getTankCapacity())
+                        .build();
+                inventoryLogRepository.save(log);
+            }
+
+            // 5. Finally, delete the Sale
+            salesRepository.deleteById(saleId);
+
+            log.info("Sale deleted and product/inventory levels restored for saleId={}", saleId);
         } catch (Exception e) {
-            log.error("Error deleting sale id={}: {}", id, e.getMessage(), e);
+            log.error("Error deleting sale id={}: {}", saleId, e.getMessage(), e);
             throw new RuntimeException("Error deleting sale: " + e.getMessage());
         }
     }
+
 
     private SalesResponseDTO toResponse(Sales sale) {
         // Convert UTC stored time to IST for frontend
@@ -270,6 +341,7 @@ public class SalesServiceImpl implements SalesService {
                 .salesInLiters(sale.getSalesInLiters())
                 .price(sale.getPrice())
                 .salesInRupees(sale.getSalesInRupees())
+                .testingTotal(sale.getTestingTotal())
                 .build();
     }
 }

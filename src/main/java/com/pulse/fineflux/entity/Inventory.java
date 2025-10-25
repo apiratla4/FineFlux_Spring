@@ -18,7 +18,6 @@ public class Inventory {
     private String inventoryId; // MongoDB _id
 
     private String organizationId; // 🔹 added for multi-tenancy
-
     private String productId;      // reference to Product
     private String productName;
     private BigDecimal totalCapacity;

@@ -15,7 +15,6 @@ import java.time.LocalDateTime;
 public class SaleHistory {
     @Id
     private String id;
-
     private String organizationId;
     private LocalDateTime dateTime;
     private String productName;
