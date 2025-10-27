@@ -169,9 +169,9 @@ public class InventoryServiceImpl implements InventoryService {
                     .build();
             inventoryLogRepository.save(historyLog);
 
-            profitLossService.calculateAndSaveProfitLoss(orgId);
+           //profitLossService.calculateAndSaveProfitLoss(orgId);
 
-            // --------- INVENTORY EXPENSES LOGIC INTEGRATION (PER-INCREMENT ONLY) -----------
+          /*  // --------- INVENTORY EXPENSES LOGIC INTEGRATION (PER-INCREMENT ONLY) -----------
             try {
                 var inventoryCategory = expenseCategoryRepository.findByCategoryNameAndOrganizationId("inventory", orgId);
 
@@ -204,6 +204,8 @@ public class InventoryServiceImpl implements InventoryService {
             }
 // --------- END INVENTORY EXPENSES LOGIC -----------
 
+           */
+
             log.debug("Inventory updated: total={}, stockValue={}, inventoryId={}", newTotal, computedStockValue, savedRecord.getInventoryId());
 
             return inventoryRepository.findAllByOrganizationId(orgId).stream()
@@ -214,6 +216,8 @@ public class InventoryServiceImpl implements InventoryService {
             throw e;
         }
     }
+
+
     @Override
     public List<InventoryResponseDTO> getAllInventories(String orgId) {
         try {
