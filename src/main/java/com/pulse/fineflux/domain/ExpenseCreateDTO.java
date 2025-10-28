@@ -11,4 +11,6 @@ public class ExpenseCreateDTO {
     private LocalDate expenseDate;
     private String organizationId;
     private String empId;
+    private String employeeName;
+
 }

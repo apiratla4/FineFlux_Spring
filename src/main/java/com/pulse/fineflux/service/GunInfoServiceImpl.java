@@ -48,12 +48,13 @@ public class GunInfoServiceImpl implements GunInfoService {
                 .orElseThrow(() -> new RuntimeException("GunInfo not found with id: " + id));
 
         gunInfo.setOrganizationId(dto.getOrganizationId());
-        gunInfo.setProductName(dto.getProductName());     // Update productName
+        gunInfo.setProductName(dto.getProductName());
         gunInfo.setGuns(dto.getGuns());
         gunInfo.setSerialNumber(dto.getSerialNumber());
         gunInfo.setCurrentReading(dto.getCurrentReading());
-        gunInfo.setId(dto.getEmpId());
+        gunInfo.setEmpId(dto.getEmpId()); // <<< Fix from setId to setEmpId
         gunInfoRepository.save(gunInfo);
+
         log.info("Updated GunInfo ID={} for organizationId={} productName={}", id, dto.getOrganizationId(), dto.getProductName());
 
         return GunInfoResponseDTO.builder()
