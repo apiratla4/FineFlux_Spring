@@ -103,7 +103,6 @@ public class CollectionsServiceImpl implements CollectionsService {
 
         entity.setExpectedTotal(expectedTotal);
         entity.setReceivedTotal(receivedTotal);
-
         Collections saved = collectionsRepository.save(entity);
 
         // Only save SaleHistory if matching sale found
@@ -111,8 +110,8 @@ public class CollectionsServiceImpl implements CollectionsService {
             SaleHistory history = SaleHistory.builder()
                     .organizationId(matchingSale.getOrganizationId())
                     .dateTime(istDateTime) // use IST for consistency
-                    .productName(displayProduct)
-                    .guns(displayGuns)
+                    .productName(normProduct)
+                    .guns(normGuns)
                     .empId(matchingSale.getEmpId())
                     .openingStock(matchingSale.getOpeningStock())
                     .closingStock(matchingSale.getClosingStock())
@@ -166,8 +165,8 @@ public class CollectionsServiceImpl implements CollectionsService {
             SaleHistory history = SaleHistory.builder()
                     .organizationId(sale.getOrganizationId())
                     .dateTime(sale.getDateTime())
-                    .productName(sale.getProductName())
-                    .guns(sale.getGuns())
+                    .productName(sale.getProductName().trim().toLowerCase())  // <-- NORMALIZE
+                    .guns(sale.getGuns().trim().toLowerCase())
                     .empId(sale.getEmpId())
                     .openingStock(sale.getOpeningStock())
                     .closingStock(sale.getClosingStock())

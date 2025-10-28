@@ -19,7 +19,6 @@ public class Collections {
     private String organizationId;
     private LocalDateTime dateTime;
     private String empId;
-
     private double cashReceived;
     private double phonePay;
     private double creditCard;

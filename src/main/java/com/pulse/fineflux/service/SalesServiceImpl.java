@@ -26,6 +26,8 @@ public class SalesServiceImpl implements SalesService {
     private final InventoryRepository inventoryRepository;
     private final InventoryLogRepository inventoryLogRepository;
     private final FinanceSummaryService financeSummaryService;
+    private final SaleHistoryRepository saleHistoryRepository;
+    private final CollectionsRepository collectionsRepository;
 
     @Override
     public SalesResponseDTO createSale(SalesCreateDTO dto) {
@@ -33,13 +35,15 @@ public class SalesServiceImpl implements SalesService {
             LocalDateTime entryDateTime = dto.getDateTime() != null ? dto.getDateTime() : LocalDateTime.now();
 
             // Find product
-            Product product = productRepository.findByOrganizationId(dto.getOrganizationId()).stream()
+            Product product = productRepository.findByOrganizationId(dto.getOrganizationId())
+                    .stream()
                     .filter(p -> p.getProductName().trim().equalsIgnoreCase(dto.getProductName().trim()))
                     .findFirst()
                     .orElseThrow(() -> new RuntimeException("Product not found: " + dto.getProductName()));
 
             // Find gun for org+product+gun
-            String gunName = gunInfoRepository.findByOrganizationId(dto.getOrganizationId()).stream()
+            String gunName = gunInfoRepository.findByOrganizationId(dto.getOrganizationId())
+                    .stream()
                     .filter(g -> g.getProductName() != null
                             && g.getProductName().trim().equalsIgnoreCase(dto.getProductName().trim())
                             && g.getGuns().trim().equalsIgnoreCase(dto.getGuns().trim()))
@@ -48,7 +52,8 @@ public class SalesServiceImpl implements SalesService {
                     .orElseThrow(() -> new RuntimeException("Gun not found for product: " + dto.getProductName() + " and gun: " + dto.getGuns()));
 
             // Always get opening from GunInfo (never trust DTO.openingStock!)
-            double opening = gunInfoRepository.findByOrganizationId(dto.getOrganizationId()).stream()
+            double opening = gunInfoRepository.findByOrganizationId(dto.getOrganizationId())
+                    .stream()
                     .filter(g -> g.getProductName() != null
                             && g.getProductName().trim().equalsIgnoreCase(dto.getProductName().trim())
                             && g.getGuns().trim().equalsIgnoreCase(dto.getGuns().trim()))
@@ -61,9 +66,16 @@ public class SalesServiceImpl implements SalesService {
 
             double liters = closing - opening - testing;
             if (liters < 0) liters = 0.0;
-
             float amount = (float) (liters * dto.getPrice());
             if (amount < 0f) amount = 0f;
+
+            // ---------- STOCK VALIDATION ----------
+            BigDecimal currLevel = product.getCurrentLevel() != null ? product.getCurrentLevel() : BigDecimal.ZERO;
+            BigDecimal required = BigDecimal.valueOf(liters);
+            if (currLevel.compareTo(required) < 0) {
+                throw new RuntimeException("create " + currLevel);
+            }
+            // ---------------------------------------
 
             Sales sale = Sales.builder()
                     .organizationId(dto.getOrganizationId())
@@ -104,7 +116,6 @@ public class SalesServiceImpl implements SalesService {
             } catch (Exception fsEx) {
                 log.error("FinanceSummary auto-creation failed for orgId={} after collection create: {}", saved.getOrganizationId(), fsEx.getMessage(), fsEx);
             }
-
 
             log.info("Sale created successfully: {}", saved);
 
@@ -157,7 +168,7 @@ public class SalesServiceImpl implements SalesService {
 
         } catch (Exception e) {
             log.error("❌ Error creating sale for orgId={} productName={}: {}", dto.getOrganizationId(), dto.getProductName(), e.getMessage(), e);
-            throw new RuntimeException("Error creating sale: " + e.getMessage());
+            throw new RuntimeException(e.getMessage());
         }
     }
 
@@ -183,15 +194,9 @@ public class SalesServiceImpl implements SalesService {
     public List<SalesResponseDTO> getSalesByDateRange(String organizationId, LocalDateTime from, LocalDateTime to) {
         try {
             log.info("Fetching sales for orgId={} from={} to={}", organizationId, from, to);
-
             List<Sales> sales = salesRepository.findByOrganizationIdAndDateTimeBetween(organizationId, from, to);
-
             log.debug("Found {} sales for orgId={} in date range", sales.size(), organizationId);
-
-            return sales.stream()
-                    .map(this::toResponse)
-                    .collect(Collectors.toList());
-
+            return sales.stream().map(this::toResponse).collect(Collectors.toList());
         } catch (Exception e) {
             log.error("Error fetching sales by date for orgId={}: {}", organizationId, e.getMessage(), e);
             throw new RuntimeException("Error fetching sales by date range: " + e.getMessage());
@@ -203,17 +208,13 @@ public class SalesServiceImpl implements SalesService {
         try {
             Sales sale = salesRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Sale not found"));
-
             sale.setClosingStock(dto.getClosingStock());
             sale.setTestingTotal(dto.getTestingTotal());
             sale.setSalesInLiters(dto.getSalesInLiters());
             sale.setPrice(dto.getPrice());
             sale.setSalesInRupees(dto.getSalesInRupees());
-
             Sales updated = salesRepository.save(sale);
-
             return toResponse(updated);
-
         } catch (Exception e) {
             log.error("Error updating sale id={}: {}", id, e.getMessage(), e);
             throw new RuntimeException("Error updating sale: " + e.getMessage());
@@ -236,12 +237,71 @@ public class SalesServiceImpl implements SalesService {
     }
 
     @Override
-    public void deleteSale(String id) {
+    public void deleteSale(String saleId) {
         try {
-            log.info("Deleting sale id={}", id);
-            salesRepository.deleteById(id);
+            // 1. Find the sale being deleted
+            Sales sale = salesRepository.findById(saleId)
+                    .orElseThrow(() -> new RuntimeException("Sale not found"));
+            String orgId = sale.getOrganizationId();
+            String productName = sale.getProductName().trim().toLowerCase(); // NORMALIZE
+            String guns = sale.getGuns().trim().toLowerCase(); // NORMALIZE
+            double addBackLiters = sale.getSalesInLiters();
+            LocalDateTime saleDateTime = sale.getDateTime();
+
+            // 2. Delete related Collections by orgId, normalized productName, normalized guns
+            List<Collections> collections = collectionsRepository.findAllByOrganizationIdAndProductNameAndGuns(
+                    orgId, productName, guns
+            );
+            log.info("Found {} collections to delete for saleId={}", collections.size(), saleId);
+            collections.forEach(collection -> collectionsRepository.deleteById(collection.getId()));
+
+            // 3. Delete related SaleHistory records by orgId, productName, guns (skip dateTime)
+            List<SaleHistory> histories = saleHistoryRepository.findAllByOrganizationIdAndProductNameAndGuns(
+                    orgId, productName, guns
+            );
+            log.info("Found {} SaleHistory records to delete for saleId={}", histories.size(), saleId);
+            histories.forEach(history -> saleHistoryRepository.deleteById(history.getId()));
+
+            // 4. Update Product's currentLevel
+            Product product = productRepository.findByOrganizationId(orgId).stream()
+                    .filter(p -> p.getProductName().equalsIgnoreCase(productName))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Product not found"));
+            BigDecimal productLevel = product.getCurrentLevel() != null ? product.getCurrentLevel() : BigDecimal.ZERO;
+            product.setCurrentLevel(productLevel.add(BigDecimal.valueOf(addBackLiters)));
+            productRepository.save(product);
+
+            // 5. Update all Inventory records for org+product
+            List<Inventory> inventories = inventoryRepository.findAllByOrganizationIdAndProductId(orgId, product.getId());
+            for (Inventory inv : inventories) {
+                BigDecimal invLevel = inv.getCurrentLevel() != null ? inv.getCurrentLevel() : BigDecimal.ZERO;
+                inv.setCurrentLevel(invLevel.add(BigDecimal.valueOf(addBackLiters)));
+
+                BigDecimal price = product.getPrice() != null ? BigDecimal.valueOf(product.getPrice()) : BigDecimal.ZERO;
+                inv.setStockValue(price.multiply(inv.getCurrentLevel()));
+                inventoryRepository.save(inv);
+
+                // Optionally, insert reversal log
+                InventoryLog log = InventoryLog.builder()
+                        .inventoryId(inv.getInventoryId())
+                        .organizationId(inv.getOrganizationId())
+                        .productId(inv.getProductId())
+                        .productName(inv.getProductName())
+                        .lastUpdated(LocalDateTime.now())
+                        .empId(sale.getEmpId())
+                        .currentLevel(inv.getCurrentLevel())
+                        .stockValue(inv.getStockValue())
+                        .metric(inv.getMetric())
+                        .status(inv.getStatus())
+                        .tankCapacity(inv.getTankCapacity())
+                        .build();
+                inventoryLogRepository.save(log);
+            }
+            // 6. Finally, delete the Sale
+            salesRepository.deleteById(saleId);
+            log.info("Sale deleted and product/inventory levels restored for saleId={}", saleId);
         } catch (Exception e) {
-            log.error("Error deleting sale id={}: {}", id, e.getMessage(), e);
+            log.error("Error deleting sale id={}: {}", saleId, e.getMessage(), e);
             throw new RuntimeException("Error deleting sale: " + e.getMessage());
         }
     }
@@ -270,6 +330,7 @@ public class SalesServiceImpl implements SalesService {
                 .salesInLiters(sale.getSalesInLiters())
                 .price(sale.getPrice())
                 .salesInRupees(sale.getSalesInRupees())
+                .testingTotal(sale.getTestingTotal())
                 .build();
     }
 }

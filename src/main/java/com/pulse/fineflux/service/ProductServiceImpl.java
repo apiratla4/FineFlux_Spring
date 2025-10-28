@@ -92,6 +92,7 @@ public class ProductServiceImpl implements ProductService {
                     .currentLevel(dto.getCurrentLevel() != null ? dto.getCurrentLevel() : BigDecimal.ZERO)
                     .metric(dto.getMetric())
                     .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
+                    .empId(dto.getEmpId())
                     .build();
 
             Product savedProduct = productRepository.save(product);
@@ -109,7 +110,7 @@ public class ProductServiceImpl implements ProductService {
                     .metric(savedProduct.getMetric())
                     .status(savedProduct.getStatus())
                     .tankCapacity(savedProduct.getTankCapacity())
-                    .empId(dto.getEmpId()) // or employeeId as per your DTO
+                    .empId(savedProduct.getEmpId())// or employeeId as per your DTO
                     .build();
 
             inventoryService.createInventory(invDto);
@@ -172,7 +173,6 @@ public class ProductServiceImpl implements ProductService {
             product.setCurrentLevel(dto.getCurrentLevel());
             product.setMetric(dto.getMetric());
             product.setLastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")));
-
             Product updatedProduct = productRepository.save(product);
             log.debug("Product updated successfully productId={} orgId={}", updatedProduct.getId(), orgId);
 

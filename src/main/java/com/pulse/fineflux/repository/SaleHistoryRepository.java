@@ -21,5 +21,7 @@ public interface SaleHistoryRepository extends MongoRepository<SaleHistory, Stri
             String guns,
             java.time.LocalDateTime dateTime
     );
+    List<SaleHistory> findAllByOrganizationIdAndProductNameAndGuns(String organizationId, String productName, String guns);
+
 }
 

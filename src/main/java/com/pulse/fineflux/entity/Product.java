@@ -21,7 +21,6 @@ public class Product {
 
     @NotBlank
     private String organizationId; // business key
-
     @NotBlank
     private String productName;
     private LocalDateTime lastUpdated;

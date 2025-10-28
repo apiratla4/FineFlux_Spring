@@ -17,7 +17,6 @@ public class InventoryLog {
 
     @Id
     private String id; // Unique log entry ID—do NOT use inventoryId as your log table's primary key!
-
     private String inventoryId;
     private String organizationId;
     private String productId;
