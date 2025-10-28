@@ -1,6 +1,8 @@
 // src/main/java/com/pulse/fineflux/domain/CustomerHistoryResponse.java
 package com.pulse.fineflux.domain;
 
+import jakarta.validation.constraints.NotBlank;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 
