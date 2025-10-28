@@ -1,4 +1,4 @@
-// src/main/java/com/pulse/fineflux/domain/document/DocumentCreateRequest.java
+
 package com.pulse.fineflux.domain;
 
 import jakarta.validation.constraints.*;

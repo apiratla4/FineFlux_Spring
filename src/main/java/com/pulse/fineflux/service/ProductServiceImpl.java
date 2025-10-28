@@ -82,6 +82,7 @@ public class ProductServiceImpl implements ProductService {
 
             Product product = Product.builder()
                     .organizationId(dto.getOrganizationId())
+                    .empId(dto.getEmpId())
                     .productName(dto.getProductName())
                     .price(dto.getPrice())
                     .status(status)
@@ -145,7 +146,7 @@ public class ProductServiceImpl implements ProductService {
             productRepository.delete(product);
             log.debug("Product deleted successfully productId={} orgId={}", productId, orgId);
         } catch (RuntimeException e) {
-            throw e; // Already logged
+            throw e;
         } catch (Exception e) {
             log.error("Error deleting product productId={} orgId={}", productId, orgId, e);
             throw new RuntimeException("Failed to delete product", e);
