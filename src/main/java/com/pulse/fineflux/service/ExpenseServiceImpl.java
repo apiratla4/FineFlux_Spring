@@ -2,12 +2,14 @@ package com.pulse.fineflux.service;
 
 import com.pulse.fineflux.domain.*;
 import com.pulse.fineflux.entity.Expense;
+import com.pulse.fineflux.repository.EmployeeRepository;
 import com.pulse.fineflux.repository.ExpenseCategoryRepository;
 import com.pulse.fineflux.repository.ExpenseRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -19,7 +21,7 @@ public class ExpenseServiceImpl implements ExpenseService {
     private final ExpenseRepository repo;
     private final ExpenseCategoryRepository catRepo;
     private final FinanceSummaryService financeSummaryService;
-
+    private final EmployeeRepository employeeRepo;
     @Override
     public ExpenseResponseDTO create(ExpenseCreateDTO dto) {
         try {
@@ -33,6 +35,7 @@ public class ExpenseServiceImpl implements ExpenseService {
                     .createdAt(LocalDateTime.now())
                     .organizationId(dto.getOrganizationId())
                     .empId(dto.getEmpId())
+                    .employeeName(dto.getEmployeeName())
                     .build();
             Expense saved = repo.save(entity);
 
@@ -98,6 +101,50 @@ public class ExpenseServiceImpl implements ExpenseService {
                 .map(this::toResponse).toList();
     }
 
+    @Override
+    public List<ExpenseResponseDTO> searchByEmployeeName(String orgId, String employeeName) {
+        try {
+            return repo.findByOrganizationIdAndEmployeeNameContainingIgnoreCase(orgId, employeeName)
+                    .stream().map(this::toResponse).toList();
+        } catch (Exception e) {
+            log.error("Error searching Expenses by employeeName '{}' for org '{}': {}", employeeName, orgId, e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    @Override
+    public List<ExpenseResponseDTO> searchByCategory(String orgId, String categoryName) {
+        try {
+            return repo.findByOrganizationIdAndCategoryName(orgId, categoryName)
+                    .stream().map(this::toResponse).toList();
+        } catch (Exception e) {
+            log.error("Error searching Expenses by categoryName '{}' for org '{}': {}", categoryName, orgId, e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    @Override
+    public List<ExpenseResponseDTO> searchByExpenseDateRange(String orgId, LocalDate from, LocalDate to) {
+        try {
+            return repo.findByOrganizationIdAndExpenseDateBetween(orgId, from, to)
+                    .stream().map(this::toResponse).toList();
+        } catch (Exception e) {
+            log.error("Error searching Expenses by expenseDate range for org {}: {}", orgId, e.getMessage(), e);
+            throw e;
+        }
+    }
+    @Override
+    public List<String> getAllEmployeeNames(String orgId) {
+        try {
+            return employeeRepo.findByOrganizationId(orgId).stream()
+                    .map(emp -> emp.getFirstName() + " " + emp.getLastName()) // or just emp.getFirstName() as needed
+                    .toList();
+        } catch (Exception e) {
+            log.error("Error fetching all Employee names for org '{}': {}", orgId, e.getMessage(), e);
+            throw e;
+        }
+    }
+
     private ExpenseResponseDTO toResponse(Expense entity) {
         return ExpenseResponseDTO.builder()
                 .id(entity.getId())
@@ -108,6 +155,7 @@ public class ExpenseServiceImpl implements ExpenseService {
                 .createdAt(entity.getCreatedAt())
                 .organizationId(entity.getOrganizationId())
                 .empId(entity.getEmpId())
+                .employeeName(entity.getEmployeeName())
                 .build();
     }
 }
