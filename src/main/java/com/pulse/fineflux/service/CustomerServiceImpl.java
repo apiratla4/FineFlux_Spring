@@ -1,4 +1,4 @@
-// src/main/java/com/pulse/fineflux/service/impl/CustomerServiceImpl.java
+// src/main/java/com/pulse/fineflux/service/CustomerServiceImpl.java
 package com.pulse.fineflux.service;
 
 import com.pulse.fineflux.domain.CustomerCreateRequest;
@@ -6,7 +6,6 @@ import com.pulse.fineflux.domain.CustomerResponse;
 import com.pulse.fineflux.domain.CustomerUpdateRequest;
 import com.pulse.fineflux.entity.Customer;
 import com.pulse.fineflux.repository.CustomerRepository;
-import com.pulse.fineflux.service.CustomerService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -30,6 +29,10 @@ public class CustomerServiceImpl implements CustomerService {
     public CustomerResponse create(String organizationId, CustomerCreateRequest req) {
         log.info("Creating customer orgId={} custId={} vehicle={}", organizationId, req.custId, req.customerVehicleNum);
 
+        Customer.LifecycleStatus lifecycle = parseLifecycle(req.lifecycleStatus); // default ACTIVE [web:22]
+        if (lifecycle == Customer.LifecycleStatus.INACTIVE) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Customer is InActive; creation not allowed"); // 403 [web:14]
+        }
         Customer c = new Customer();
         c.setOrganizationId(organizationId);
         c.setCustId(req.custId);
@@ -40,12 +43,12 @@ public class CustomerServiceImpl implements CustomerService {
         c.setTotalBorrowedAmount(req.amountBorrowed != null ? req.amountBorrowed : BigDecimal.ZERO);
         c.setBorrowDate(req.borrowDate);
         c.setDueDate(req.dueDate);
-        c.setStatus(parseStatus(req.status));
+        c.setStatus(parseBorrowStatus(req.status));
+        c.setLifecycleStatus(lifecycle);
         c.setPhoneNumber(req.phoneNumber);
         c.setEmail(req.email);
         c.setNotes(req.notes);
         c.setAddress(mapAddress(req.address));
-
         c = repo.save(c);
         log.info("Created customer id={} orgId={} custId={}", c.getId(), organizationId, c.getCustId());
         return toResponse(c);
@@ -83,6 +86,17 @@ public class CustomerServiceImpl implements CustomerService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "organizationId change is not allowed");
         }
 
+        // Compute target lifecycle after this update
+        Customer.LifecycleStatus targetLifecycle = c.getLifecycleStatus() == null
+                ? Customer.LifecycleStatus.ACTIVE
+                : c.getLifecycleStatus();
+        if (req.lifecycleStatus != null) {
+            targetLifecycle = parseLifecycle(req.lifecycleStatus);
+        }
+        if (targetLifecycle == Customer.LifecycleStatus.INACTIVE) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Customer is InActive; update not allowed"); // 403 [web:14]
+        }
+
         if (req.custId != null) c.setCustId(req.custId);
         if (req.customerName != null) c.setCustomerName(req.customerName);
         if (req.customerVehicleNum != null) c.setCustomerVehicleNum(req.customerVehicleNum);
@@ -91,11 +105,13 @@ public class CustomerServiceImpl implements CustomerService {
         if (req.totalBorrowedAmount != null) c.setTotalBorrowedAmount(req.totalBorrowedAmount);
         if (req.borrowDate != null) c.setBorrowDate(req.borrowDate);
         if (req.dueDate != null) c.setDueDate(req.dueDate);
-        if (req.status != null) c.setStatus(parseStatus(req.status));
+        if (req.status != null) c.setStatus(parseBorrowStatus(req.status));
         if (req.phoneNumber != null) c.setPhoneNumber(req.phoneNumber);
         if (req.email != null) c.setEmail(req.email);
         if (req.notes != null) c.setNotes(req.notes);
         if (req.address != null) c.setAddress(mapAddress(req.address));
+        // commit ACTIVE lifecycle
+        c.setLifecycleStatus(targetLifecycle);
 
         c = repo.save(c);
         log.info("Updated customer id={} orgId={}", id, organizationId);
@@ -112,7 +128,6 @@ public class CustomerServiceImpl implements CustomerService {
         log.info("Deleted customer id={} orgId={}", id, organizationId);
     }
 
-    // NEW: delete by external custId (used by UI)
     @Override
     public void deleteByCustId(String organizationId, String custId) {
         log.info("Deleting customer by custId={} orgId={}", custId, organizationId);
@@ -127,17 +142,29 @@ public class CustomerServiceImpl implements CustomerService {
     public CustomerResponse updateTotalBorrowedAmount(String organizationId, String custId, BigDecimal totalBorrowedAmount) {
         Customer c = repo.findByCustIdAndOrganizationId(custId, organizationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer not found"));
+        // optional: forbid if lifecycle is INACTIVE
+        if (c.getLifecycleStatus() == Customer.LifecycleStatus.INACTIVE) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Customer is InActive; update not allowed"); // 403 [web:14]
+        }
         c.setTotalBorrowedAmount(totalBorrowedAmount);
         c = repo.save(c);
         return toResponse(c);
     }
 
-    private Customer.BorrowStatus parseStatus(String s) {
+    private Customer.BorrowStatus parseBorrowStatus(String s) {
         try {
             return Customer.BorrowStatus.valueOf(s.toUpperCase());
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid status: " + s);
         }
+    }
+
+    private Customer.LifecycleStatus parseLifecycle(String s) {
+        if (s == null || s.isBlank()) return Customer.LifecycleStatus.ACTIVE; // default ACTIVE [web:22]
+        String norm = s.trim().toUpperCase().replaceAll("[^A-Z]", ""); // normalize Active/InActive
+        if ("ACTIVE".equals(norm)) return Customer.LifecycleStatus.ACTIVE;
+        if ("INACTIVE".equals(norm)) return Customer.LifecycleStatus.INACTIVE;
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid lifecycleStatus: " + s);
     }
 
     private Customer.Address mapAddress(CustomerCreateRequest.AddressDTO dto) {
@@ -165,10 +192,11 @@ public class CustomerServiceImpl implements CustomerService {
         r.borrowDate = c.getBorrowDate();
         r.dueDate = c.getDueDate();
         r.status = c.getStatus() != null ? c.getStatus().name() : null;
+        r.lifecycleStatus = c.getLifecycleStatus() != null ? c.getLifecycleStatus().name() : null;
         r.phoneNumber = c.getPhoneNumber();
         r.email = c.getEmail();
         r.notes = c.getNotes();
-        if (c.getAddress() != null) { // FIX: add parentheses + null check
+        if (c.getAddress() != null) {
             CustomerCreateRequest.AddressDTO a = new CustomerCreateRequest.AddressDTO();
             a.line1 = c.getAddress().getLine1();
             a.line2 = c.getAddress().getLine2();

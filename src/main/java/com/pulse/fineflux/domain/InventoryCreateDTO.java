@@ -25,4 +25,5 @@ public class InventoryCreateDTO {
     private Boolean status;
     private BigDecimal tankCapacity;
     private LocalDateTime lastUpdated;
+    private double receiptQuantityInLitres;
 }
