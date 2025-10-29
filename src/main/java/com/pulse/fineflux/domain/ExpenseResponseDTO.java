@@ -16,4 +16,5 @@ public class ExpenseResponseDTO {
     private LocalDateTime createdAt;
     private String organizationId;
     private String empId;
+    private String employeeName;
 }

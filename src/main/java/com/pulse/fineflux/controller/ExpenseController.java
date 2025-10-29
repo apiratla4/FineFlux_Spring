@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -72,6 +73,56 @@ public class ExpenseController {
             return service.getAllByOrg(orgId);
         } catch (Exception e) {
             log.error("Error fetching Expenses for org {}: {}", orgId, e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    @GetMapping("/search/employee")
+    public List<ExpenseResponseDTO> searchByEmployeeName(
+            @PathVariable String orgId,
+            @RequestParam String employeeName) {
+        try {
+            log.info("Searching Expenses by employeeName '{}' for org: {}", employeeName, orgId);
+            return service.searchByEmployeeName(orgId, employeeName);
+        } catch (Exception e) {
+            log.error("Error searching Expenses by employeeName for org {}: {}", orgId, e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    @GetMapping("/search/category")
+    public List<ExpenseResponseDTO> searchByCategory(
+            @PathVariable String orgId,
+            @RequestParam String categoryName) {
+        try {
+            log.info("Searching Expenses by categoryName '{}' for org: {}", categoryName, orgId);
+            return service.searchByCategory(orgId, categoryName);
+        } catch (Exception e) {
+            log.error("Error searching Expenses by categoryName for org {}: {}", orgId, e.getMessage(), e);
+            throw e;
+        }
+    }
+    @GetMapping("/search/date/range")
+    public List<ExpenseResponseDTO> searchByDateRange(
+            @PathVariable String orgId,
+            @RequestParam String from,
+            @RequestParam String to) {
+        try {
+            log.info("Searching Expenses by expenseDate in range [{}, {}] for org: {}", from, to, orgId);
+            return service.searchByExpenseDateRange(orgId, LocalDate.parse(from), LocalDate.parse(to));
+        } catch (Exception e) {
+            log.error("Error searching Expenses by expenseDate range for org {}: {}", orgId, e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    @GetMapping("/search/employee/all")
+    public List<String> getAllEmployeeNames(@PathVariable String orgId) {
+        try {
+            log.info("Fetching all employee names for org: {}", orgId);
+            return service.getAllEmployeeNames(orgId);
+        } catch (Exception e) {
+            log.error("Error fetching all employee names for org {}: {}", orgId, e.getMessage(), e);
             throw e;
         }
     }

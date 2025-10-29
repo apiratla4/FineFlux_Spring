@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface EmployeeRepository extends MongoRepository<Employee, String> {
@@ -21,4 +22,5 @@ public interface EmployeeRepository extends MongoRepository<Employee, String> {
     boolean existsByOrganizationIdAndUsername(String organizationId, String username);
     Optional<Employee> findByOrganizationIdAndUsername(String orgId, String emailOrUsername);
     Optional<Employee> findByOrganizationIdAndEmailId(String orgId, String emailOrUsername);
+    List<Employee> findByOrganizationId(String organizationId);
 }
