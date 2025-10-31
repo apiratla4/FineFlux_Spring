@@ -30,4 +30,5 @@ public class InventoryLog {
     private Boolean status;
     private BigDecimal tankCapacity;
     private double receiptQuantityInLitres;
+    private String mutationby;
 }

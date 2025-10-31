@@ -119,15 +119,17 @@ public class SalesController {
      * Delete a sale
      * DELETE /api/organizations/{orgId}/sales/{id}
      */
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteSale(@PathVariable String orgId, @PathVariable String id) {
+    @DeleteMapping("/{saleId}")
+    public ResponseEntity<Void> deleteSale(
+            @PathVariable String saleId,
+            @RequestHeader("X-Employee-Id") String employeeId // ensures audit/mutationby in SaleHistory
+    ) {
         try {
-            log.info("Request to delete sale id={} for orgId={}", id, orgId);
-            salesService.deleteSale(id);
-            log.debug("Sale deleted successfully: saleId={}", id);
+            log.info("Deleting sale saleId={} by employee={}", saleId, employeeId);
+            salesService.deleteSale(saleId, employeeId); // uses your fully integrated business logic!
             return ResponseEntity.noContent().build();
         } catch (Exception e) {
-            log.error("Error deleting sale id={} for orgId={}: {}", id, orgId, e.getMessage(), e);
+            log.error("Error deleting sale saleId={}: {}", saleId, e.getMessage(), e);
             return ResponseEntity.status(500).build();
         }
     }

@@ -24,4 +24,5 @@ public class InventoryLogResponseDTO {
     private Boolean status;
     private BigDecimal tankCapacity;
     private double receiptQuantityInLitres;
+    private String mutationby;
 }

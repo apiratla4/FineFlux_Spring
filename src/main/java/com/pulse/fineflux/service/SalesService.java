@@ -11,6 +11,6 @@ public interface SalesService {
     SalesResponseDTO getSaleById(String id);
     List<SalesResponseDTO> getAllSales(String organizationId);
     List<SalesResponseDTO> getSalesByDateRange(String organizationId, LocalDateTime from, LocalDateTime to);
-    void deleteSale(String id);
+ void deleteSale(String saleId, String employeeId);
 
 }

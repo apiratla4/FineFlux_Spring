@@ -147,6 +147,7 @@ public class InventoryServiceImpl implements InventoryService {
                     .metric(dto.getMetric())
                     .status(dto.getStatus())
                     .tankCapacity(dto.getTankCapacity())
+
                     .build();
 
             Inventory savedRecord = inventoryRepository.save(inventory);
@@ -168,6 +169,7 @@ public class InventoryServiceImpl implements InventoryService {
                     .status(savedRecord.getStatus())
                     .tankCapacity(savedRecord.getTankCapacity())
                     .receiptQuantityInLitres(dto.getCurrentLevel() != null ? dto.getCurrentLevel().doubleValue() : 0.0) // The *increment* (e.g., 100)
+                    .mutationby("inventory updated by " + dto.getEmpId())
                     .build();
             inventoryLogRepository.save(historyLog);
 
@@ -246,11 +248,56 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     @Transactional
-    public void deleteInventory(String orgId, String inventoryId) {
+    public void deleteInventory(String orgId, String inventoryId, String employeeId) {
         try {
             log.info("Deleting inventory id={} orgId={}", inventoryId, orgId);
+
+            // 1. Get inventory BEFORE deleting, so you can use all its details
+            Inventory inv = inventoryRepository.findById(inventoryId)
+                    .orElseThrow(() -> new RuntimeException("Inventory not found for deletion"));
+
+            String productId = inv.getProductId();
+
+            // 2. Get product BEFORE deleting inventory (prevents not found errors!)
+            Product product = productRepository.findByIdAndOrganizationId(productId, orgId)
+                    .orElseThrow(() -> new RuntimeException(
+                            "Product not found for inventory delete (possible data corruption or orphan inventory)"
+                    ));
+
+            // 3. Find previous InventoryLog for this product, excluding the soon-to-be-deleted inventoryId
+            InventoryLog prevLog = inventoryLogRepository.findTopByProductIdAndInventoryIdNotOrderByLastUpdatedDesc(
+                    productId, inventoryId
+            );
+            BigDecimal previousLevel = (prevLog != null) ? prevLog.getCurrentLevel() : BigDecimal.ZERO;
+            BigDecimal previousStockValue = (prevLog != null) ? prevLog.getStockValue() : BigDecimal.ZERO;
+            // 4. Restore product currentLevel to previous most recent value
+            product.setCurrentLevel(previousLevel);
+
+            productRepository.save(product);
+
+            // 5. Log mutation in InventoryLog
+            InventoryLog deleteLog = InventoryLog.builder()
+                    .inventoryId(inv.getInventoryId())
+                    .organizationId(inv.getOrganizationId())
+                    .productId(inv.getProductId())
+                    .productName(inv.getProductName())
+                    .totalCapacity(inv.getTotalCapacity())
+                    .stockValue(previousStockValue)
+                    .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
+                    .empId(employeeId)
+                    .currentLevel(previousLevel) // The "restored" value
+                    .metric(inv.getMetric())
+                    .status(inv.getStatus())
+                    .tankCapacity(inv.getTankCapacity())
+                    .mutationby("inventory deleted by " + employeeId)
+                    .build();
+
+            inventoryLogRepository.save(deleteLog);
+
+            // 6. Now delete the inventory record
             inventoryRepository.deleteById(inventoryId);
             log.debug("Inventory deleted successfully inventoryId={}", inventoryId);
+
         } catch (Exception e) {
             log.error("Error deleting inventory inventoryId={} orgId={}", inventoryId, orgId, e);
             throw e;

@@ -14,4 +14,5 @@ public class InventoryLogUpdateDTO {
     private String metric;
     private Boolean status;
     private BigDecimal tankCapacity;
+    private String mutationby;
 }

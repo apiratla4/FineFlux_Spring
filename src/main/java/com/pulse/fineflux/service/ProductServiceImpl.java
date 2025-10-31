@@ -180,7 +180,8 @@ public class ProductServiceImpl implements ProductService {
             List<Inventory> inventories = inventoryService.getInventoriesByProductAndOrg(orgId, productId);
             for (Inventory inv : inventories) {
                 inv.setCurrentLevel(updatedProduct.getCurrentLevel());
-
+                // --- Sync status from product to inventory ---
+                inv.setStatus(updatedProduct.getStatus());
                 BigDecimal currentLevel = inv.getCurrentLevel() != null ? inv.getCurrentLevel() : BigDecimal.ZERO;
                 BigDecimal price = updatedProduct.getPrice() != null ? BigDecimal.valueOf(updatedProduct.getPrice()) : BigDecimal.ZERO;
                 BigDecimal newStockValue = price.multiply(currentLevel);
