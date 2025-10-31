@@ -22,9 +22,7 @@ public interface InventoryLogRepository extends MongoRepository<InventoryLog, St
     // In InventoryLogRepository
     InventoryLog findTopByInventoryIdOrderByLastUpdatedDesc(String inventoryId);
 
-    List<InventoryLog> findByOrganizationIdOrderByLastUpdatedDesc(String organizationId);
     List<InventoryLog> findByOrganizationIdOrderByLastUpdatedAsc(String organizationId);
-
 
 
 }
