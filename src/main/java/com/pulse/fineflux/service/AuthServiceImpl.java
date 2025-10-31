@@ -28,6 +28,12 @@ public class AuthServiceImpl implements AuthService {
         Employee e = repo.findByUsername(req.username)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials"));
 
+        // Only allow login for ACTIVE employees
+        if (!"ACTIVE".equalsIgnoreCase(e.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Employee is inactive. Login not permitted.");
+        }
+
+
         if (!passwordEncoder.matches(req.password, e.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }

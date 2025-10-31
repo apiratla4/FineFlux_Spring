@@ -7,6 +7,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -17,14 +20,17 @@ public class InventoryLogServiceImpl implements InventoryLogService {
 
     private final InventoryLogRepository inventoryLogRepository;
 
+    private static final ZoneId IST_ZONE = ZoneId.of("Asia/Kolkata");
+
     @Override
     public List<InventoryLogResponseDTO> getAllLogs(String orgId) {
-        return inventoryLogRepository.findByOrganizationIdOrderByLastUpdatedAsc(orgId)
-                .stream()
+        // Fetch ALL logs, sort DESC by IST lastUpdated (recent top), map to IST
+        List<InventoryLog> logs = inventoryLogRepository.findByOrganizationId(orgId);
+        return logs.stream()
+                .sorted(Comparator.comparing(InventoryLog::getLastUpdated).reversed()) // Most recent first
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
-
 
     @Override
     public InventoryLogResponseDTO getLogById(String orgId, String id) {
@@ -36,9 +42,9 @@ public class InventoryLogServiceImpl implements InventoryLogService {
     @Override
     public List<InventoryLogResponseDTO> getLogsByProductName(String orgId, String productName) {
         String regex = "^" + productName.trim() + "\\s*$";
-        return inventoryLogRepository
-                .findByOrganizationIdAndProductNameRegex(orgId, regex)
-                .stream()
+        List<InventoryLog> logs = inventoryLogRepository.findByOrganizationIdAndProductNameRegex(orgId, regex);
+        return logs.stream()
+                .sorted(Comparator.comparing(InventoryLog::getLastUpdated).reversed())
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
@@ -53,24 +59,29 @@ public class InventoryLogServiceImpl implements InventoryLogService {
         inventoryLogRepository.deleteById(id);
     }
 
-    // Internal mapping helper
+    // Internal mapping helper: Always map lastUpdated to IST for DTO
     private InventoryLogResponseDTO toDto(InventoryLog log) {
+        LocalDateTime lastUpdated = log.getLastUpdated();
+        LocalDateTime istTime = lastUpdated == null ? null
+                : lastUpdated.atZone(ZoneId.systemDefault())
+                .withZoneSameInstant(IST_ZONE)
+                .toLocalDateTime();
         return InventoryLogResponseDTO.builder()
-                .id(log.getId())                      // <--- Ensure this line is present
+                .id(log.getId())
                 .inventoryId(log.getInventoryId())
                 .organizationId(log.getOrganizationId())
                 .productId(log.getProductId())
                 .productName(log.getProductName())
                 .totalCapacity(log.getTotalCapacity())
                 .stockValue(log.getStockValue())
-                .lastUpdated(log.getLastUpdated())
+                .lastUpdated(istTime) // Always send IST to UI
                 .empId(log.getEmpId())
                 .currentLevel(log.getCurrentLevel())
                 .metric(log.getMetric())
                 .status(log.getStatus())
                 .tankCapacity(log.getTankCapacity())
                 .receiptQuantityInLitres(log.getReceiptQuantityInLitres())
+                .mutationby(log.getMutationby())
                 .build();
     }
-
 }

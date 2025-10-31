@@ -15,7 +15,7 @@ public interface InventoryService {
 
     InventoryResponseDTO getLatestInventory(String orgId, String productId);
 
-    void deleteInventory(String orgId, String inventoryId);
+    void deleteInventory(String orgId, String inventoryId, String employeeId);
 
     List<Inventory> getInventoriesByProductAndOrg(String orgId, String productId);
     void saveInventory(Inventory inventory);

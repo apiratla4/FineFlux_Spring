@@ -66,10 +66,12 @@ public class InventoryController {
     @DeleteMapping("/{inventoryId}")
     public ResponseEntity<Void> delete(
             @PathVariable String orgId,
-            @PathVariable String inventoryId) {
+            @PathVariable String inventoryId,
+            @RequestHeader("X-Employee-Id") String employeeId
+    ) {
         try {
             log.info("Deleting inventory inventoryId={} for orgId={}", inventoryId, orgId);
-            inventoryService.deleteInventory(orgId, inventoryId);
+            inventoryService.deleteInventory(orgId, inventoryId, employeeId);
             log.debug("Inventory deleted successfully inventoryId={}", inventoryId);
             return ResponseEntity.noContent().build();
         } catch (Exception e) {

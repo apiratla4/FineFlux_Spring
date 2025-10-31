@@ -31,4 +31,5 @@ public class SaleHistory {
     private double creditCard;
     private double shortCollections;
     private double receivedTotal;
+    private String mutationby;
 }

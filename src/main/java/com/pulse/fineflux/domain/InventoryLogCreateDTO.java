@@ -25,4 +25,5 @@ public class InventoryLogCreateDTO {
     private BigDecimal tankCapacity;
     private LocalDateTime lastUpdated;
     private double receiptQuantityInLitres;
+    private String mutationby;
 }
