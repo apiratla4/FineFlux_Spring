@@ -77,7 +77,7 @@ public class CustomerController {
         return ResponseEntity.noContent().build();
     }
 
-    // Optional: delete via query param (alternative pattern)
+
     // DELETE /api/organizations/{orgId}/customers?custId=ABC123
     @DeleteMapping(params = "custId")
     public ResponseEntity<Void> deleteByCustIdQuery(@PathVariable("orgId") String orgId,
