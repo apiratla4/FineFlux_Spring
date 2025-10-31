@@ -19,11 +19,12 @@ public class InventoryLogServiceImpl implements InventoryLogService {
 
     @Override
     public List<InventoryLogResponseDTO> getAllLogs(String orgId) {
-        return inventoryLogRepository.findByOrganizationId(orgId)
+        return inventoryLogRepository.findByOrganizationIdOrderByLastUpdatedAsc(orgId)
                 .stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
+
 
     @Override
     public InventoryLogResponseDTO getLogById(String orgId, String id) {
@@ -68,6 +69,7 @@ public class InventoryLogServiceImpl implements InventoryLogService {
                 .metric(log.getMetric())
                 .status(log.getStatus())
                 .tankCapacity(log.getTankCapacity())
+                .receiptQuantityInLitres(log.getReceiptQuantityInLitres())
                 .build();
     }
 

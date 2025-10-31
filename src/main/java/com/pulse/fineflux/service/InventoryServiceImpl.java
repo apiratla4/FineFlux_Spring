@@ -99,6 +99,7 @@ public class InventoryServiceImpl implements InventoryService {
                     .metric(savedInventory.getMetric())
                     .status(savedInventory.getStatus())
                     .tankCapacity(savedInventory.getTankCapacity())
+                    .receiptQuantityInLitres(0.0)  // <-- Always zero on initial create
                     .build();
             inventoryLogRepository.save(logEntry);
 
@@ -166,6 +167,7 @@ public class InventoryServiceImpl implements InventoryService {
                     .metric(savedRecord.getMetric())
                     .status(savedRecord.getStatus())
                     .tankCapacity(savedRecord.getTankCapacity())
+                    .receiptQuantityInLitres(dto.getCurrentLevel() != null ? dto.getCurrentLevel().doubleValue() : 0.0) // The *increment* (e.g., 100)
                     .build();
             inventoryLogRepository.save(historyLog);
 
