@@ -3,15 +3,11 @@ package com.pulse.fineflux.entity;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-
-import lombok.Getter;
-import lombok.Setter;
-import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
+import lombok.*;
 
 @Getter
 @Setter
@@ -19,16 +15,15 @@ import lombok.Builder;
 @AllArgsConstructor
 @Builder
 @Document(collection = "customers")
+@CompoundIndex(name = "unique_org_cust", def = "{'organizationId':1,'custId':1}", unique = true) // unique within org [web:13]
 public class Customer {
 
-    public boolean getAddress;
     @Id
     private String id;
 
     @NotBlank
     private String organizationId;
 
-    // Business customer ID provided by UI (unique within org)
     @NotBlank
     private String custId;
 
@@ -41,12 +36,10 @@ public class Customer {
     @NotBlank
     private String empId;
 
-    // Current outstanding debt
     @NotNull
     @DecimalMin(value = "0.0")
     private BigDecimal amountBorrowed;
 
-    // Cumulative borrowed total for reporting/quick views
     @NotNull
     @DecimalMin(value = "0.0")
     private BigDecimal totalBorrowedAmount;
@@ -59,6 +52,10 @@ public class Customer {
 
     @NotNull
     private BorrowStatus status;
+
+    // NEW: lifecycle flag for UI Active/InActive
+    @NotNull
+    private LifecycleStatus lifecycleStatus; // ACTIVE or INACTIVE [web:23]
 
     @Pattern(regexp = "^\\+?[0-9]{7,15}$", message = "Invalid phone")
     private String phoneNumber;
@@ -74,6 +71,10 @@ public class Customer {
         PENDING, PARTIAL, PAID, OVERDUE
     }
 
+    public enum LifecycleStatus {
+        ACTIVE, INACTIVE
+    }
+
     @Getter @Setter
     @NoArgsConstructor @AllArgsConstructor @Builder
     public static class Address {
@@ -85,3 +86,4 @@ public class Customer {
         private String country;
     }
 }
+

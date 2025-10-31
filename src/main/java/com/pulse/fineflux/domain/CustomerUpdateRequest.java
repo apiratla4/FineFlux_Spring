@@ -1,20 +1,21 @@
-
+// src/main/java/com/pulse/fineflux/domain/CustomerUpdateRequest.java
 package com.pulse.fineflux.domain;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public class CustomerUpdateRequest {
-    public String organizationId;       // must match current org; change not allowed
-    public String custId;               // business id; change allowed if desired
+    public String organizationId;
+    public String custId;
     public String customerName;
     public String customerVehicleNum;
     public String empId;
-    public BigDecimal amountBorrowed;   // current outstanding (not recommended to patch directly)
-    public BigDecimal totalBorrowedAmount; // optional if manually syncing
+    public BigDecimal amountBorrowed;
+    public BigDecimal totalBorrowedAmount;
     public LocalDate borrowDate;
     public LocalDate dueDate;
-    public String status;
+    public String status;            // BorrowStatus
+    public String lifecycleStatus;   // "Active" | "InActive" [web:22]
     public String phoneNumber;
     public String email;
     public String notes;

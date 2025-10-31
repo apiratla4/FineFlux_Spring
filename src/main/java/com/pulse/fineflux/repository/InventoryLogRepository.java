@@ -21,7 +21,8 @@ public interface InventoryLogRepository extends MongoRepository<InventoryLog, St
 
     // In InventoryLogRepository
     InventoryLog findTopByInventoryIdOrderByLastUpdatedDesc(String inventoryId);
-    List<InventoryLog> findAllByOrganizationIdAndProductId(String organizationId, String productId);
+
+    List<InventoryLog> findByOrganizationIdOrderByLastUpdatedAsc(String organizationId);
 
 
 }

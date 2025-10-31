@@ -23,4 +23,5 @@ public class InventoryLogResponseDTO {
     private String metric;
     private Boolean status;
     private BigDecimal tankCapacity;
+    private double receiptQuantityInLitres;
 }

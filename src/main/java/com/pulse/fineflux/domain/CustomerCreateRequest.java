@@ -1,4 +1,4 @@
-
+// src/main/java/com/pulse/fineflux/domain/CustomerCreateRequest.java
 package com.pulse.fineflux.domain;
 
 import jakarta.validation.constraints.*;
@@ -13,13 +13,14 @@ public class CustomerCreateRequest {
     @NotBlank public String empId;
 
     @NotNull @DecimalMin(value = "0.0", inclusive = false)
-    public BigDecimal amountBorrowed;            // initial borrowed (opening)
+    public BigDecimal amountBorrowed;
 
     @PastOrPresent public LocalDate borrowDate;
     @FutureOrPresent public LocalDate dueDate;
 
-    // enum name: PENDING | PARTIAL | PAID | OVERDUE
-    @NotBlank public String status;
+    @NotBlank public String status;           // BorrowStatus: PENDING|PARTIAL|PAID|OVERDUE
+
+    public String lifecycleStatus;            // "Active" | "InActive" (optional, default Active) [web:22]
 
     @Pattern(regexp = "^\\+?[0-9]{7,15}$") public String phoneNumber;
     @Email public String email;
