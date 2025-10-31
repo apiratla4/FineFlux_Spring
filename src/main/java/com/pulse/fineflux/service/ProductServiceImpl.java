@@ -195,6 +195,7 @@ public class ProductServiceImpl implements ProductService {
                 if (latestLog != null) {
                     latestLog.setCurrentLevel(updatedProduct.getCurrentLevel());
                     latestLog.setStockValue(newStockValue);
+                    latestLog.setStatus(updatedProduct.getStatus());
                     latestLog.setLastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")));
                     inventoryLogRepository.save(latestLog);
                     log.debug("Latest InventoryLog updated for inventoryId={} with new currentLevel={} and new stockValue={}",
