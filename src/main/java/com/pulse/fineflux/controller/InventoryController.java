@@ -87,7 +87,7 @@ public class InventoryController {
         try {
             log.info("Fetching latest inventory for orgId={}, productId={}", orgId, productId);
             InventoryResponseDTO response = inventoryService.getLatestInventory(orgId, productId);
-            log.debug("Fetched latest inventory for orgId={}, productId={}", orgId, productId);
+            log.debug("Fetched latest inventory fo r orgId={}, productId={}", orgId, productId);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error fetching latest inventory for orgId={} productId={}", orgId, productId, e);

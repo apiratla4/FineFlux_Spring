@@ -212,6 +212,31 @@ public class ProductServiceImpl implements ProductService {
         }
     }
 
+    @Override
+    public ProductResponseDTO updateProductStatus(String orgId, String productId, Boolean status) {
+        try {
+            log.info("Updating status for productId={} orgId={} to {}", productId, orgId, status);
+
+            Product product = productRepository.findByIdAndOrganizationId(productId, orgId)
+                    .orElseThrow(() -> {
+                        log.warn("Product not found for status update productId={} orgId={}", productId, orgId);
+                        return new RuntimeException("Product not found");
+                    });
+
+            product.setStatus(status);
+            product.setLastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")));
+            Product updatedProduct = productRepository.save(product);
+            log.debug("Product status updated successfully productId={} orgId={} status={}", updatedProduct.getId(), orgId, status);
+
+            return toResponse(updatedProduct);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error updating product status productId={} orgId={}", productId, orgId, e);
+            throw new RuntimeException("Failed to update product status", e);
+        }
+    }
+
     /**
      * Convert Product entity to ProductResponseDTO.
      */

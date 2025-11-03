@@ -116,9 +116,7 @@ public class EmployeeAttendanceServiceImpl implements EmployeeAttendanceService 
         }
         ea.setShortTimeMins(shortTime);
         ea.setExtraHoursMins(extraHours);
-        ea.setDescription(
-                "Break time = breakOut - breakIn. Duty = scheduled shift mins. Working = checkOut - checkIn - break. "
-                        + "Short time = max(0, duty-working). Extra hours = max(0, working-duty)."
+        ea.setDescription(dto.getDescription()
         );
 
         // MONTHLY METRICS (attendanceRate and avgHours)
