@@ -38,8 +38,19 @@ public class SecurityConfig {
                 "https://*.fineflux.com"
         ));
         cfg.setAllowedMethods(List.of("GET","POST","PUT","DELETE","PATCH","OPTIONS"));
-        cfg.setAllowedHeaders(List.of("Content-Type","Authorization","X-Requested-With","Accept","Origin"));
-        cfg.setExposedHeaders(List.of("Authorization","Location"));
+        cfg.setAllowedHeaders(List.of(
+                "Content-Type",
+                "Authorization",
+                "X-Requested-With",
+                "Accept",
+                "Origin",
+                "X-Employee-Id"  // ← ADDED THIS
+        ));
+        cfg.setExposedHeaders(List.of(
+                "Authorization",
+                "Location",
+                "X-Employee-Id"  // ← ADDED THIS
+        ));
         cfg.setAllowCredentials(true);
         cfg.setMaxAge(3600L);
 
