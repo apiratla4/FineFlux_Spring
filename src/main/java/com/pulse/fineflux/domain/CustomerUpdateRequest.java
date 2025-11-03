@@ -15,7 +15,7 @@ public class CustomerUpdateRequest {
     public LocalDate borrowDate;
     public LocalDate dueDate;
     public String status;            // BorrowStatus
-    public String lifecycleStatus;   // "Active" | "InActive" [web:22]
+    public String lifecycleStatus;   // "Active" | "InActive"
     public String phoneNumber;
     public String email;
     public String notes;

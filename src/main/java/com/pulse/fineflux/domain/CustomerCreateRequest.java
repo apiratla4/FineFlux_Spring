@@ -20,7 +20,7 @@ public class CustomerCreateRequest {
 
     @NotBlank public String status;           // BorrowStatus: PENDING|PARTIAL|PAID|OVERDUE
 
-    public String lifecycleStatus;            // "Active" | "InActive" (optional, default Active) [web:22]
+    public String lifecycleStatus;            // "Active" | "InActive" (optional, default Active)
 
     @Pattern(regexp = "^\\+?[0-9]{7,15}$") public String phoneNumber;
     @Email public String email;
