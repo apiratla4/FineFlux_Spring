@@ -14,7 +14,7 @@ import java.util.List;
 public class EmployeeDutyUpdateDTO {
 
     private LocalDate dutyDate;
-    private String productId;
+    private List<String> productIds;
     private List<String> gunIds;
     private String shiftStart;
     private String shiftEnd;

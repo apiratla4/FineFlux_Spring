@@ -26,7 +26,7 @@ public class EmployeeDutyCreateDTO {
     private LocalDate dutyDate;
 
     @NotBlank(message = "Product ID is required")
-    private String productId;
+    private List<String> productIds;
 
     @NotEmpty(message = "At least one gun must be assigned")
     private List<String> gunIds;

@@ -26,7 +26,7 @@ public class EmployeeDuty {
     private String organizationId;
     private String empId;
     private LocalDate dutyDate;
-    private String productId;
+    private List<String> productIds;
     private List<String> gunIds;
     private String shiftStart;
     private String shiftEnd;
