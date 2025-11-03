@@ -1,13 +1,17 @@
 // src/main/java/com/pulse/fineflux/entity/Customer.java
 package com.pulse.fineflux.entity;
 
+import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+
 import lombok.*;
+import org.springframework.data.mongodb.core.mapping.Field;
 
 @Getter
 @Setter
@@ -85,5 +89,6 @@ public class Customer {
         private String postalCode;
         private String country;
     }
+
 }
 

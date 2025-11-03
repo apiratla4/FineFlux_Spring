@@ -20,10 +20,9 @@ public class AppSettingsController {
     private final ProductRepository productRepository;
     private final ProductPriceUpdateService priceUpdateService;
 
-    /**
-     * Update a product price within org scope (cascades to inventory and inventory log).
-     * PUT /api/organizations/{orgId}/appsettings/products/{productId}/price?price=120.0&empId=EMP123
-     */
+
+    // PUT /api/organizations/{orgId}/appsettings/products/{productId}/price?price=120.0&empId=EMP123
+
     @PutMapping("/products/{productId}/price")
     public ResponseEntity<Void> updateProductPrice(@PathVariable("orgId") String orgId,
                                                    @PathVariable("productId") String productId,
