@@ -55,8 +55,8 @@ public class EmployeeDutyServiceImpl implements EmployeeDutyService {
         if (updateDTO.getDutyDate() != null) {
             duty.setDutyDate(updateDTO.getDutyDate());
         }
-        if (updateDTO.getProductId() != null) {
-            duty.setProductId(updateDTO.getProductId());
+        if (updateDTO.getProductIds() != null) {
+            duty.setProductIds(updateDTO.getProductIds());
         }
         if (updateDTO.getGunIds() != null) {
             duty.setGunIds(updateDTO.getGunIds());

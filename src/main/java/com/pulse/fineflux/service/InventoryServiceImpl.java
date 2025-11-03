@@ -169,7 +169,7 @@ public class InventoryServiceImpl implements InventoryService {
                     .status(savedRecord.getStatus())
                     .tankCapacity(savedRecord.getTankCapacity())
                     .receiptQuantityInLitres(dto.getCurrentLevel() != null ? dto.getCurrentLevel().doubleValue() : 0.0) // The *increment* (e.g., 100)
-                    .mutationby("inventory updated by " + dto.getEmpId())
+                    .mutationby("inventory Stock updated by " + dto.getEmpId())
                     .build();
             inventoryLogRepository.save(historyLog);
 

@@ -31,6 +31,8 @@ public interface EmployeeDutyRepository extends MongoRepository<EmployeeDuty, St
 
     // THIS IS THE KEY METHOD for "lookup shift by empId only, most recent"
     EmployeeDuty findTopByEmpIdAndShiftStartNotNullAndShiftEndNotNullOrderByDutyDateDesc(String empId);
+    List<EmployeeDuty> findByProductIdsContaining(String productId); // find duties for a given product
+
 
 
 

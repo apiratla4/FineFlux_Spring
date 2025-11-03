@@ -318,7 +318,7 @@ public class SalesServiceImpl implements SalesService {
                         .metric(inv.getMetric())
                         .status(inv.getStatus())
                         .tankCapacity(inv.getTankCapacity())
-                        .mutationby("rollback by sale delete " + employeeId)
+                        .mutationby("Sale Entry Deleted By :" + employeeId)
                         .build();
                 inventoryLogRepository.save(log);
             }

@@ -5,6 +5,7 @@ import com.pulse.fineflux.domain.EmployeeDutyResponseDTO;
 import com.pulse.fineflux.domain.EmployeeDutyUpdateDTO;
 import com.pulse.fineflux.service.EmployeeDutyService;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -14,9 +15,10 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.constraints.*;
 import java.time.LocalDate;
 import java.util.List;
-
+@Slf4j
 @RestController
 @RequestMapping("/api/organizations/{organizationId}/employee-duties")
+
 @CrossOrigin(origins = "*")
 public class EmployeeDutyController {
 
@@ -25,12 +27,18 @@ public class EmployeeDutyController {
 
     @PostMapping
     public ResponseEntity<EmployeeDutyResponseDTO> createDuty(
-            @PathVariable String organizationId,
-            @Valid @RequestBody EmployeeDutyCreateDTO createDTO) {
-        createDTO.setOrganizationId(organizationId);
-        EmployeeDutyResponseDTO response = dutyService.createDuty(createDTO);
-        return new ResponseEntity<>(response, HttpStatus.CREATED);
+            @PathVariable("organizationId") String organizationId,
+            @RequestBody EmployeeDutyCreateDTO dto) {
+        try {
+            dto.setOrganizationId(organizationId);
+            EmployeeDutyResponseDTO result = dutyService.createDuty(dto);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("Error creating duty for orgId={}: {}", organizationId, e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
+
 
     @GetMapping
     public ResponseEntity<List<EmployeeDutyResponseDTO>> getAllDutiesByOrganization(
