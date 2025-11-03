@@ -100,4 +100,19 @@ public class ProductController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
+
+    // PATCH: /api/organizations/{orgId}/products/{productId}/status?status=true
+    @PatchMapping("/{productId}/status")
+    public ResponseEntity<ProductResponseDTO> updateStatus(
+            @PathVariable String orgId,
+            @PathVariable String productId,
+            @RequestParam Boolean status) {
+        try {
+            ProductResponseDTO updated = productService.updateProductStatus(orgId, productId, status);
+            return ResponseEntity.ok(updated);
+        } catch (Exception e) {
+            log.error("Error patching status for productId={} orgId={}: {}", productId, orgId, e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 }
