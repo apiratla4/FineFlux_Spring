@@ -14,6 +14,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -165,6 +169,56 @@ public class CustomerServiceImpl implements CustomerService {
         if ("ACTIVE".equals(norm)) return Customer.LifecycleStatus.ACTIVE;
         if ("INACTIVE".equals(norm)) return Customer.LifecycleStatus.INACTIVE;
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid lifecycleStatus: " + s);
+    }
+
+    // Get customers created today for org
+    @Override
+    public List<CustomerResponse> getTodayCustomers(String organizationId) {
+        LocalDateTime start = LocalDate.now(ZoneId.of("Asia/Kolkata")).atStartOfDay();
+        LocalDateTime end = start.plusDays(1);
+        return repo.findAllByOrganizationIdAndBorrowDateBetween(organizationId, start, end)
+                .stream().map(this::toResponse).toList();
+    }
+
+    // Get customers this week for org (Mon to next Mon)
+    @Override
+    public List<CustomerResponse> getWeekCustomers(String organizationId) {
+        LocalDateTime start = LocalDate.now(ZoneId.of("Asia/Kolkata")).with(java.time.DayOfWeek.MONDAY).atStartOfDay();
+        LocalDateTime end = start.plusDays(7);
+        return repo.findAllByOrganizationIdAndBorrowDateBetween(organizationId, start, end)
+                .stream().map(this::toResponse).toList();
+    }
+
+    // Get customers this month for org
+    @Override
+    public List<CustomerResponse> getMonthCustomers(String organizationId) {
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Kolkata"));
+        LocalDateTime start = today.withDayOfMonth(1).atStartOfDay();
+        LocalDateTime end = start.plusMonths(1);
+        return repo.findAllByOrganizationIdAndBorrowDateBetween(organizationId, start, end)
+                .stream().map(this::toResponse).toList();
+    }
+
+    // Get customers by custom date range
+    @Override
+    public List<CustomerResponse> getCustomersByDateRange(String organizationId, LocalDateTime from, LocalDateTime to) {
+        return repo.findAllByOrganizationIdAndBorrowDateBetween(organizationId, from, to)
+                .stream().map(this::toResponse).toList();
+    }
+
+
+    // Update ONLY the lifecycleStatus of a customer
+    @Override
+    public CustomerResponse updateLifecycleStatus(String organizationId, String id, String lifecycleStatus) {
+        Customer c = repo.findByIdAndOrganizationId(id, organizationId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer not found"));
+
+        Customer.LifecycleStatus status = parseLifecycle(lifecycleStatus);
+        c.setLifecycleStatus(status);
+
+        c = repo.save(c);
+        log.info("Updated lifecycleStatus for customer id={} orgId={} to {}", id, organizationId, status);
+        return toResponse(c);
     }
 
     private Customer.Address mapAddress(CustomerCreateRequest.AddressDTO dto) {
