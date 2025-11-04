@@ -1,6 +1,5 @@
 package com.pulse.fineflux.service;
 
-import com.pulse.fineflux.domain.FinanceSummaryCreateDTO;
 import com.pulse.fineflux.domain.FinanceSummaryResponseDTO;
 import com.pulse.fineflux.domain.FinanceSummaryUpdateDTO;
 import com.pulse.fineflux.entity.*;
@@ -15,7 +14,10 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -28,6 +30,7 @@ public class FinanceSummaryServiceImpl implements FinanceSummaryService {
     private final InventoryLogRepository inventoryLogRepository;
     private final ProductRepository productRepository;
     private final ExpenseRepository expenseRepo;
+    private final SalesRepository salesRepo;
 
     @Override
     public FinanceSummaryResponseDTO update(String id, FinanceSummaryUpdateDTO dto) {
@@ -49,77 +52,68 @@ public class FinanceSummaryServiceImpl implements FinanceSummaryService {
         return toResponse(saved);
     }
 
-
-    @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public FinanceSummaryResponseDTO autoCreateFinanceSummary(String orgId) {
-        try {
-            if (orgId == null) {
-                log.error("autoCreateFinanceSummary called with null orgId");
-                throw new IllegalArgumentException("orgId cannot be null");
-            }
-            log.warn("autoCreateFinanceSummary START orgId={}", orgId);
+        if (orgId == null) throw new IllegalArgumentException("orgId cannot be null");
 
-            LocalDate today = LocalDate.now();
-            LocalDateTime dayStart = today.atStartOfDay();
-            LocalDateTime dayEnd = dayStart.plusDays(1);
+        ZoneId IST = ZoneId.of("Asia/Kolkata");
+        LocalDate today = LocalDate.now(IST);
 
-            // 1) Collections totals (today)
-            List<Collections> cols = collectionsRepository.findByOrganizationIdAndDateTimeBetween(orgId, dayStart, dayEnd);
-            double cashReceived = fmt(cols.stream().mapToDouble(Collections::getCashReceived).sum());
-            double phonePay = fmt(cols.stream().mapToDouble(Collections::getPhonePay).sum());
-            double creditCard = fmt(cols.stream().mapToDouble(Collections::getCreditCard).sum());
+        ZonedDateTime zonedStart = today.atStartOfDay(IST);
+        LocalDateTime dayStart = zonedStart.toLocalDateTime();
+        LocalDateTime dayEnd = dayStart.plusDays(1);
 
-            // 2) Inventory values per product (latest currentLevel * product.price)
-            double petrolInventory = fmt(getInventoryValue(orgId, "Petrol"));
-            double dieselInventory = fmt(getInventoryValue(orgId, "Diesel"));
-            double premiumPetrolInventory = fmt(getInventoryValue(orgId, "Premium Petrol"));
-            double cngInventory = fmt(getInventoryValue(orgId, "CNG"));
-            double twoTInventory = fmt(getInventoryValue(orgId, "2T"));
 
-            // 3) Today expenses
-            List<Expense> expenses = expenseRepo.findByOrganizationId(orgId);
-            double totalExpenses = fmt(
-                    expenses.stream()
-                            .filter(e -> e.getExpenseDate() != null && e.getExpenseDate().equals(today))
-                            .mapToDouble(Expense::getAmount)
-                            .sum()
-            );
+        Optional<FinanceSummary> existingOpt = financeRepo
+                .findTopByOrganizationIdAndCreatedAtBetweenOrderByCreatedAtDesc(orgId,
+                        dayStart.atZone(IST).withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime(),
+                        dayEnd.atZone(IST).withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime());
 
-            // 4) Total
-            double total = fmt(
-                    cashReceived + phonePay + creditCard
-                            + petrolInventory + dieselInventory + premiumPetrolInventory + cngInventory + twoTInventory
-                            - totalExpenses
-            );
+        double salesRevenue = fmt(salesRepo
+                .findByOrganizationIdAndDateTimeBetween(orgId, dayStart, dayEnd)
+                .stream().mapToDouble(Sales::getSalesInRupees).sum());
 
-            FinanceSummary summary = FinanceSummary.builder()
-                    .organizationId(orgId)
-                    .createdAt(LocalDateTime.now())
-                    .cashReceived(cashReceived)
-                    .phonePay(phonePay)
-                    .creditCard(creditCard)
-                    .petrolInventory(petrolInventory)
-                    .dieselInventory(dieselInventory)
-                    .premiumPetrolInventory(premiumPetrolInventory)
-                    .cngInventory(cngInventory)
-                    .twoTInventory(twoTInventory)
-                    .totalExpenses(totalExpenses)
-                    .description("updated")
-                    .total(total)
-                    .build();
+        double petrolInventory = fmt(getInventoryValue(orgId, "Petrol"));
+        double dieselInventory = fmt(getInventoryValue(orgId, "Diesel"));
+        double premiumPetrolInventory = fmt(getInventoryValue(orgId, "Premium Petrol"));
+        double cngInventory = fmt(getInventoryValue(orgId, "CNG"));
+        double twoTInventory = fmt(getInventoryValue(orgId, "2T"));
 
-            FinanceSummary saved = financeRepo.save(summary);
-            log.warn("autoCreateFinanceSummary END orgId={} savedId={}", orgId, saved.getId());
-            return toResponse(saved);
+        List<Collections> collections = collectionsRepository
+                .findByOrganizationIdAndDateTimeBetween(orgId, dayStart, dayEnd);
 
-        } catch (Exception e) {
-            log.error("Error auto-creating FinanceSummary for orgId={}: {}", orgId, e.getMessage(), e);
-            throw e;
-        }
+        double cashReceived = fmt(collections.stream().mapToDouble(Collections::getCashReceived).sum());
+        double phonePay     = fmt(collections.stream().mapToDouble(Collections::getPhonePay).sum());
+        double creditCard   = fmt(collections.stream().mapToDouble(Collections::getCreditCard).sum());
+
+        double totalExpenses = fmt(expenseRepo.findByOrganizationId(orgId).stream()
+                .filter(e -> today.equals(e.getExpenseDate()))
+                .mapToDouble(Expense::getAmount).sum());
+
+        double totalRevenue = fmt(salesRevenue + petrolInventory + dieselInventory +
+                premiumPetrolInventory + cngInventory + twoTInventory);
+
+        double netTotal = fmt(totalRevenue - totalExpenses);
+
+        FinanceSummary summary = existingOpt.orElseGet(FinanceSummary::new);
+        summary.setOrganizationId(orgId);
+        summary.setCreatedAt(LocalDateTime.now()); // update createdAt only if new?
+        summary.setCashReceived(cashReceived);
+        summary.setPhonePay(phonePay);
+        summary.setCreditCard(creditCard);
+        summary.setPetrolInventory(petrolInventory);
+        summary.setDieselInventory(dieselInventory);
+        summary.setPremiumPetrolInventory(premiumPetrolInventory);
+        summary.setCngInventory(cngInventory);
+        summary.setTwoTInventory(twoTInventory);
+        summary.setTotalExpenses(totalExpenses);
+        summary.setTotal(netTotal);
+        summary.setDescription("updated");
+
+        FinanceSummary saved = financeRepo.save(summary);
+        return toResponse(saved);
     }
 
-    // --- Robustly gets the latest inventory log value ---
     private double getInventoryValue(String orgId, String productName) {
         try {
             Inventory latest = inventoryRepo.findAllByOrganizationId(orgId).stream()
@@ -159,7 +153,9 @@ public class FinanceSummaryServiceImpl implements FinanceSummaryService {
         return FinanceSummaryResponseDTO.builder()
                 .id(e.getId())
                 .organizationId(e.getOrganizationId())
-                .createdAt(e.getCreatedAt())
+                .createdAt(e.getCreatedAt().atZone(ZoneId.of("UTC"))
+                        .withZoneSameInstant(ZoneId.of("Asia/Kolkata"))
+                        .toLocalDateTime())
                 .cashReceived(fmt(e.getCashReceived()))
                 .phonePay(fmt(e.getPhonePay()))
                 .creditCard(fmt(e.getCreditCard()))
