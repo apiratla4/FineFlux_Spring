@@ -92,7 +92,7 @@ public class SalesServiceImpl implements SalesService {
                     .build();
 
             Sales saved = salesRepository.save(sale);
-
+            financeSummaryService.autoCreateFinanceSummary(saved.getOrganizationId());
             // Update GunInfo currentReading after this sale
             gunInfoRepository.findByOrganizationId(dto.getOrganizationId()).stream()
                     .filter(g -> g.getProductName() != null
@@ -111,7 +111,7 @@ public class SalesServiceImpl implements SalesService {
 
             try {
                 log.info("Calling financeSummaryService.autoCreateFinanceSummary for orgId={} after collection create", saved.getOrganizationId());
-                financeSummaryService.autoCreateFinanceSummary(saved.getOrganizationId());
+               // financeSummaryService.autoCreateFinanceSummary(saved.getOrganizationId());
                 log.info("FinanceSummary successfully auto-created for orgId={} after collection create", saved.getOrganizationId());
             } catch (Exception fsEx) {
                 log.error("FinanceSummary auto-creation failed for orgId={} after collection create: {}", saved.getOrganizationId(), fsEx.getMessage(), fsEx);
@@ -326,6 +326,15 @@ public class SalesServiceImpl implements SalesService {
             // 7. Finally, delete the Sale
             salesRepository.deleteById(saleId);
             log.info("Sale deleted and all relevant rollback/audit applied for saleId={}", saleId);
+
+            // ✅ 8. Trigger FinanceSummary recalculation after sale deletion
+            try {
+                log.info("Calling financeSummaryService.autoCreateFinanceSummary after sale deletion for orgId={}", orgId);
+                financeSummaryService.autoCreateFinanceSummary(orgId);
+                log.info("FinanceSummary auto-updated after sale deletion for orgId={}", orgId);
+            } catch (Exception fsEx) {
+                log.error("FinanceSummary auto-update failed after sale delete for orgId={}: {}", orgId, fsEx.getMessage(), fsEx);
+            }
 
         } catch (Exception e) {
             log.error("Error deleting sale id={}: {}", saleId, e.getMessage(), e);

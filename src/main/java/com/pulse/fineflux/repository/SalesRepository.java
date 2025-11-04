@@ -56,4 +56,6 @@ public interface SalesRepository extends MongoRepository<Sales, String> {
     List<Sales> findByOrganizationIdAndProductNameIgnoreCaseOrderByDateTime(
             String organizationId, String productName
     );
+
+
 }

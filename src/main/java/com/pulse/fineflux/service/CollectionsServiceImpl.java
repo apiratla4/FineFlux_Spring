@@ -25,6 +25,7 @@ public class CollectionsServiceImpl implements CollectionsService {
     private final CollectionsRepository collectionsRepository;
     private final SalesRepository salesRepository;
     private final SaleHistoryRepository saleHistoryRepository;
+    private final FinanceSummaryService financeSummaryService;
 
     private static final ZoneId IST_ZONE = ZoneId.of("Asia/Kolkata");
 
@@ -105,6 +106,7 @@ public class CollectionsServiceImpl implements CollectionsService {
         entity.setReceivedTotal(receivedTotal);
         Collections saved = collectionsRepository.save(entity);
 
+        financeSummaryService.autoCreateFinanceSummary(saved.getOrganizationId());
         // Only save SaleHistory if matching sale found
         if (matchingSale != null) {
             SaleHistory history = SaleHistory.builder()
