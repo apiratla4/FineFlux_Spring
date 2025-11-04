@@ -10,8 +10,9 @@
 #COPY --from=builder /app/target/*.jar app.jar
 #EXPOSE 8080
 #ENTRYPOINT ["java","-jar","app.jar"]
-FROM openjdk:25-jdk-slim
+FROM eclipse-temurin:21-jdk-slim
 WORKDIR /app
 COPY target/*.jar app.jar
 EXPOSE 8080
 ENTRYPOINT ["java","-jar","app.jar"]
+
