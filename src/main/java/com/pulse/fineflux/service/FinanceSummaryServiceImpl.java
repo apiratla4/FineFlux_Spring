@@ -52,6 +52,7 @@ public class FinanceSummaryServiceImpl implements FinanceSummaryService {
         return toResponse(saved);
     }
 
+    @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public FinanceSummaryResponseDTO autoCreateFinanceSummary(String orgId) {
         if (orgId == null) throw new IllegalArgumentException("orgId cannot be null");
@@ -59,18 +60,22 @@ public class FinanceSummaryServiceImpl implements FinanceSummaryService {
         ZoneId IST = ZoneId.of("Asia/Kolkata");
         LocalDate today = LocalDate.now(IST);
 
-        ZonedDateTime zonedStart = today.atStartOfDay(IST);
-        LocalDateTime dayStart = zonedStart.toLocalDateTime();
-        LocalDateTime dayEnd = dayStart.plusDays(1);
+        LocalDateTime istStart = today.atStartOfDay();
+        LocalDateTime istEnd = istStart.plusDays(1);
 
+        // Convert to UTC for querying
+        LocalDateTime utcStart = istStart.atZone(IST).withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime();
+        LocalDateTime utcEnd = istEnd.atZone(IST).withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime();
 
         Optional<FinanceSummary> existingOpt = financeRepo
-                .findTopByOrganizationIdAndCreatedAtBetweenOrderByCreatedAtDesc(orgId,
-                        dayStart.atZone(IST).withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime(),
-                        dayEnd.atZone(IST).withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime());
+                .findTopByOrganizationIdAndCreatedAtBetweenOrderByCreatedAtDesc(orgId, utcStart, utcEnd);
+
+        FinanceSummary summary = existingOpt.orElseGet(FinanceSummary::new);
+
+        boolean isNew = summary.getId() == null;
 
         double salesRevenue = fmt(salesRepo
-                .findByOrganizationIdAndDateTimeBetween(orgId, dayStart, dayEnd)
+                .findByOrganizationIdAndDateTimeBetween(orgId, istStart, istEnd)
                 .stream().mapToDouble(Sales::getSalesInRupees).sum());
 
         double petrolInventory = fmt(getInventoryValue(orgId, "Petrol"));
@@ -80,24 +85,24 @@ public class FinanceSummaryServiceImpl implements FinanceSummaryService {
         double twoTInventory = fmt(getInventoryValue(orgId, "2T"));
 
         List<Collections> collections = collectionsRepository
-                .findByOrganizationIdAndDateTimeBetween(orgId, dayStart, dayEnd);
+                .findByOrganizationIdAndDateTimeBetween(orgId, istStart, istEnd);
 
         double cashReceived = fmt(collections.stream().mapToDouble(Collections::getCashReceived).sum());
         double phonePay     = fmt(collections.stream().mapToDouble(Collections::getPhonePay).sum());
         double creditCard   = fmt(collections.stream().mapToDouble(Collections::getCreditCard).sum());
 
-        double totalExpenses = fmt(expenseRepo.findByOrganizationId(orgId).stream()
-                .filter(e -> today.equals(e.getExpenseDate()))
-                .mapToDouble(Expense::getAmount).sum());
+        // 3) Today expenses
+        List<Expense> expenses = expenseRepo.findByOrganizationId(orgId);
+        double totalExpenses = fmt( expenses.stream() .filter(e -> e.getExpenseDate() != null && e.getExpenseDate().equals(today)) .mapToDouble(Expense::getAmount) .sum() );
 
         double totalRevenue = fmt(salesRevenue + petrolInventory + dieselInventory +
                 premiumPetrolInventory + cngInventory + twoTInventory);
 
         double netTotal = fmt(totalRevenue - totalExpenses);
 
-        FinanceSummary summary = existingOpt.orElseGet(FinanceSummary::new);
+        // Update fields
         summary.setOrganizationId(orgId);
-        summary.setCreatedAt(LocalDateTime.now()); // update createdAt only if new?
+        if (isNew) summary.setCreatedAt(LocalDateTime.now()); // only set if new
         summary.setCashReceived(cashReceived);
         summary.setPhonePay(phonePay);
         summary.setCreditCard(creditCard);

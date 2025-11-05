@@ -7,6 +7,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -19,23 +21,34 @@ public class SaleHistoryServiceImpl implements SaleHistoryService {
 
     @Override
     public List<SaleHistoryResponseDTO> getAll(String orgId) {
-        log.info("Fetching all SaleHistory records for orgId={}", orgId);
-        return saleHistoryRepository.findByOrganizationId(orgId)
-                .stream().map(this::toResponse).collect(Collectors.toList());
+        log.info("Fetching all SaleHistory records for orgId={} in ascending order", orgId);
+        return saleHistoryRepository.findByOrganizationIdOrderByDateTimeAsc(orgId)
+                .stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
     }
+
 
     @Override
     public List<SaleHistoryResponseDTO> getByDateRange(String orgId, LocalDateTime from, LocalDateTime to) {
-        log.info("Fetching SaleHistory by date range for orgId={}, from={}, to={}", orgId, from, to);
-        return saleHistoryRepository.findByOrganizationIdAndDateTimeBetween(orgId, from, to)
-                .stream().map(this::toResponse).collect(Collectors.toList());
+        log.info("Fetching SaleHistory by date range for orgId={}, from={}, to={} in DESC order", orgId, from, to);
+        return saleHistoryRepository.findByOrganizationIdAndDateTimeBetweenOrderByDateTimeAsc(orgId, from, to)
+                .stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
     }
 
+
     private SaleHistoryResponseDTO toResponse(SaleHistory h) {
+        ZonedDateTime istZonedDateTime = h.getDateTime() != null
+                ? h.getDateTime().atZone(ZoneId.of("UTC")).withZoneSameInstant(ZoneId.of("Asia/Kolkata"))
+                : null;
+
         return SaleHistoryResponseDTO.builder()
                 .id(h.getId())
                 .organizationId(h.getOrganizationId())
-                .dateTime(h.getDateTime())
+                .dateTime(istZonedDateTime != null ? istZonedDateTime.toLocalDateTime() : null) // optional, for display
+                .dateTimeString(istZonedDateTime != null ? istZonedDateTime.toString() : null)   // 👈 NEW FIELD (ISO string with +05:30)
                 .productName(h.getProductName())
                 .guns(h.getGuns())
                 .empId(h.getEmpId())
@@ -52,4 +65,5 @@ public class SaleHistoryServiceImpl implements SaleHistoryService {
                 .receivedTotal(h.getReceivedTotal())
                 .build();
     }
+
 }

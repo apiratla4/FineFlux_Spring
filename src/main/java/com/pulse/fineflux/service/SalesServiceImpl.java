@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -150,7 +152,7 @@ public class SalesServiceImpl implements SalesService {
                                 .productName(inventory.getProductName())
                                 .totalCapacity(inventory.getTotalCapacity())
                                 .stockValue(updatedStockValue)
-                                .lastUpdated(LocalDateTime.now())
+                                .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
                                 .empId(dto.getEmpId())
                                 .currentLevel(updatedInv)
                                 .metric(inventory.getMetric())
@@ -255,7 +257,7 @@ public class SalesServiceImpl implements SalesService {
             // 3. Do NOT delete SaleHistory. Add an audit record with mutationby for deletion.
             SaleHistory deletedRecord = SaleHistory.builder()
                     .organizationId(orgId)
-                    .dateTime(LocalDateTime.now())
+                    .dateTime(ZonedDateTime.now(ZoneId.of("Asia/Kolkata")).withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime())
                     .productName(productName)
                     .guns(guns)
                     .empId(employeeId)
@@ -265,7 +267,8 @@ public class SalesServiceImpl implements SalesService {
                     .salesInLiters(sale.getSalesInLiters())
                     .price(sale.getPrice())
                     .salesInRupees(sale.getSalesInRupees())
-                    .mutationby("deleted by " + employeeId)
+                    .mutationby("sale delete by " + employeeId)
+                    .lastUpdated(ZonedDateTime.now(ZoneId.of("Asia/Kolkata")).withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime())
                     .build();
             saleHistoryRepository.save(deletedRecord);
             log.info("Recorded SaleHistory audit log for deleted saleId={}", saleId);
@@ -311,7 +314,7 @@ public class SalesServiceImpl implements SalesService {
                         .organizationId(inv.getOrganizationId())
                         .productId(inv.getProductId())
                         .productName(inv.getProductName())
-                        .lastUpdated(LocalDateTime.now())
+                        .lastUpdated(ZonedDateTime.now(ZoneId.of("Asia/Kolkata")).withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime())
                         .empId(employeeId)
                         .currentLevel(inv.getCurrentLevel())
                         .stockValue(inv.getStockValue())
@@ -352,6 +355,10 @@ public class SalesServiceImpl implements SalesService {
         } else {
             istTime = null;
         }
+        // Convert UTC to IST with zone info
+        ZonedDateTime istZoned = utcTime.atZone(ZoneId.of("UTC"))
+                .withZoneSameInstant(ZoneId.of("Asia/Kolkata"));
+        String displayTime = istZoned.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
         return SalesResponseDTO.builder()
                 .id(sale.getId())
                 .organizationId(sale.getOrganizationId())

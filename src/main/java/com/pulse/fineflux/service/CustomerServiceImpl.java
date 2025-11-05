@@ -171,7 +171,6 @@ public class CustomerServiceImpl implements CustomerService {
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid lifecycleStatus: " + s);
     }
 
-    // Get customers created today for org
     @Override
     public List<CustomerResponse> getTodayCustomers(String organizationId) {
         LocalDateTime start = LocalDate.now(ZoneId.of("Asia/Kolkata")).atStartOfDay();
@@ -180,16 +179,15 @@ public class CustomerServiceImpl implements CustomerService {
                 .stream().map(this::toResponse).toList();
     }
 
-    // Get customers this week for org (Mon to next Mon)
     @Override
     public List<CustomerResponse> getWeekCustomers(String organizationId) {
-        LocalDateTime start = LocalDate.now(ZoneId.of("Asia/Kolkata")).with(java.time.DayOfWeek.MONDAY).atStartOfDay();
+        LocalDateTime start = LocalDate.now(ZoneId.of("Asia/Kolkata"))
+                .with(java.time.DayOfWeek.MONDAY).atStartOfDay();
         LocalDateTime end = start.plusDays(7);
         return repo.findAllByOrganizationIdAndBorrowDateBetween(organizationId, start, end)
                 .stream().map(this::toResponse).toList();
     }
 
-    // Get customers this month for org
     @Override
     public List<CustomerResponse> getMonthCustomers(String organizationId) {
         LocalDate today = LocalDate.now(ZoneId.of("Asia/Kolkata"));
@@ -199,7 +197,6 @@ public class CustomerServiceImpl implements CustomerService {
                 .stream().map(this::toResponse).toList();
     }
 
-    // Get customers by custom date range
     @Override
     public List<CustomerResponse> getCustomersByDateRange(String organizationId, LocalDateTime from, LocalDateTime to) {
         return repo.findAllByOrganizationIdAndBorrowDateBetween(organizationId, from, to)

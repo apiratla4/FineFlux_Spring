@@ -68,6 +68,13 @@ public class ExpenseServiceImpl implements ExpenseService {
             entity.setExpenseDate(dto.getExpenseDate());
             Expense saved = repo.save(entity);
             log.info("Expense updated: {}", saved);
+            try {
+                log.info("Calling financeSummaryService.autoupdatedFinanceSummary for orgId={} [action=expense]", saved.getOrganizationId());
+                financeSummaryService.autoCreateFinanceSummary(saved.getOrganizationId());
+                log.info("FinanceSummary successfully auto-updated for orgId={} (expenses updated)", saved.getOrganizationId());
+            } catch (Exception fsEx) {
+                log.error("FinanceSummary auto-creation failed for orgId={} after expense: {}", saved.getOrganizationId(), fsEx.getMessage(), fsEx);
+            }
             return toResponse(saved);
         } catch(Exception e) {
             log.error("Error updating expense: {}", e.getMessage(), e);
@@ -81,6 +88,14 @@ public class ExpenseServiceImpl implements ExpenseService {
             Expense entity = repo.findByIdAndOrganizationId(id, organizationId)
                     .orElseThrow(() -> new RuntimeException("Expense not found (org)"));
             repo.deleteById(entity.getId());
+
+            try {
+                log.info("Calling financeSummaryService.autoCreateFinanceSummary for  delete time orgId={} [action=expense]", entity.getOrganizationId());
+                financeSummaryService.autoCreateFinanceSummary(entity.getOrganizationId());
+                log.info("FinanceSummary successfully auto-created for delete time orgId={} (expenses updated)", entity.getOrganizationId());
+            } catch (Exception fsEx) {
+                log.error("FinanceSummary auto-creation failed for orgId={} after expense: {}", entity.getOrganizationId(), fsEx.getMessage(), fsEx);
+            }
             log.info("Expense deleted: {}", id);
         } catch(Exception e) {
             log.error("Error deleting expense: {}", e.getMessage(), e);

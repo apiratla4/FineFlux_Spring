@@ -32,4 +32,5 @@ public class SaleHistory {
     private double shortCollections;
     private double receivedTotal;
     private String mutationby;
+    private LocalDateTime lastUpdated;
 }

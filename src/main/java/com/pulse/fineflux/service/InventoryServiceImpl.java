@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.PathVariable;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -32,6 +33,7 @@ public class InventoryServiceImpl implements InventoryService {
     // At the top of your InventoryServiceImpl, with your others:
     private final ExpenseRepository expenseRepository;
     private final ExpenseCategoryRepository expenseCategoryRepository;
+    private final FinanceSummaryService financeSummaryService;
 
 
     // CREATE (used first time only)
@@ -117,7 +119,7 @@ public class InventoryServiceImpl implements InventoryService {
     // ADD/UPDATE via PUT (ALWAYS send only increment! This will update cumulative total)
     @Override
     @Transactional
-    public List<InventoryResponseDTO> updateInventory(String orgId, String productId, InventoryUpdateDTO dto) {
+    public List<InventoryResponseDTO> updateInventory(String orgId, String productId,  String empId, InventoryUpdateDTO dto) {
         try {
             log.info("Updating inventory for orgId={}, productId={}", orgId, productId);
 
@@ -142,12 +144,11 @@ public class InventoryServiceImpl implements InventoryService {
                     .totalCapacity(dto.getTotalCapacity())
                     .stockValue(computedStockValue)
                     .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
-                    .empId(dto.getEmpId())
+                    .empId(empId)
                     .currentLevel(newTotal)
                     .metric(dto.getMetric())
                     .status(dto.getStatus())
                     .tankCapacity(dto.getTankCapacity())
-
                     .build();
 
             Inventory savedRecord = inventoryRepository.save(inventory);
@@ -162,7 +163,7 @@ public class InventoryServiceImpl implements InventoryService {
                     .productName(savedRecord.getProductName())
                     .totalCapacity(savedRecord.getTotalCapacity())
                     .stockValue(computedStockValue)
-                    .lastUpdated(savedRecord.getLastUpdated())
+                    .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
                     .empId(savedRecord.getEmpId())
                     .currentLevel(savedRecord.getCurrentLevel())
                     .metric(savedRecord.getMetric())
@@ -172,7 +173,7 @@ public class InventoryServiceImpl implements InventoryService {
                     .mutationby("inventory Stock updated by " + dto.getEmpId())
                     .build();
             inventoryLogRepository.save(historyLog);
-
+            financeSummaryService.autoCreateFinanceSummary(savedRecord.getOrganizationId());
            //profitLossService.calculateAndSaveProfitLoss(orgId);
 
           /*  // --------- INVENTORY EXPENSES LOGIC INTEGRATION (PER-INCREMENT ONLY) -----------

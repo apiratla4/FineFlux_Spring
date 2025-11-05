@@ -107,11 +107,12 @@ public class CollectionsServiceImpl implements CollectionsService {
         Collections saved = collectionsRepository.save(entity);
 
         financeSummaryService.autoCreateFinanceSummary(saved.getOrganizationId());
+
         // Only save SaleHistory if matching sale found
         if (matchingSale != null) {
             SaleHistory history = SaleHistory.builder()
                     .organizationId(matchingSale.getOrganizationId())
-                    .dateTime(istDateTime) // use IST for consistency
+                    .dateTime(LocalDateTime.now(ZoneId.of("Asia/Kolkata"))) // use IST for consistency
                     .productName(normProduct)
                     .guns(normGuns)
                     .empId(matchingSale.getEmpId())
@@ -126,6 +127,8 @@ public class CollectionsServiceImpl implements CollectionsService {
                     .creditCard(saved.getCreditCard())
                     .shortCollections(saved.getShortCollections())
                     .receivedTotal(saved.getReceivedTotal())
+                    .mutationby("sale create by " + saved.getEmpId())
+                    .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
                     .build();
             saleHistoryRepository.save(history);
             log.info("SaleHistory inserted for saleId={} empId={} orgId={}",

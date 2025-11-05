@@ -3,13 +3,14 @@ package com.pulse.fineflux.service;
 import com.pulse.fineflux.domain.*;
 import com.pulse.fineflux.entity.Inventory;
 import com.pulse.fineflux.entity.InventoryLog;
+import org.springframework.web.bind.annotation.PathVariable;
 
 import java.util.List;
 
 public interface InventoryService {
     InventoryResponseDTO createInventory(InventoryCreateDTO dto);
 
-    List<InventoryResponseDTO> updateInventory(String orgId, String productId, InventoryUpdateDTO dto);
+    List<InventoryResponseDTO> updateInventory(String orgId, String productId,  String empId, InventoryUpdateDTO dto);
 
     List<InventoryResponseDTO> getAllInventories(String orgId);
 
