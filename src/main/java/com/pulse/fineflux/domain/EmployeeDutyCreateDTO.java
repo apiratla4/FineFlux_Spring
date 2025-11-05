@@ -1,6 +1,5 @@
 package com.pulse.fineflux.domain;
 
-
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -25,7 +24,7 @@ public class EmployeeDutyCreateDTO {
     @NotNull(message = "Duty date is required")
     private LocalDate dutyDate;
 
-    @NotBlank(message = "Product ID is required")
+    @NotEmpty(message = "At least one product must be assigned")
     private List<String> productIds;
 
     @NotEmpty(message = "At least one gun must be assigned")

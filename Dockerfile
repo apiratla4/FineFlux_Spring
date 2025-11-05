@@ -10,7 +10,11 @@
 #COPY --from=builder /app/target/*.jar app.jar
 #EXPOSE 8080
 #ENTRYPOINT ["java","-jar","app.jar"]
-FROM openjdk:25-jdk-slim
+#FROM openjdk:21-jdk-slim
+FROM openjdk:26-ea-jdk-slim
+LABEL maintainer="appupiratla@gmail.com"
+LABEL version="1.0"
+LABEL description="FineFlux Spring Boot application"
 WORKDIR /app
 COPY target/*.jar app.jar
 EXPOSE 8080
