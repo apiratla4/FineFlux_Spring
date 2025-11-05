@@ -132,32 +132,17 @@ public class CustomerController {
 
     @GetMapping("/today")
     public List<CustomerResponse> getToday(@PathVariable String orgId) {
-        try {
-            return customerService.getTodayCustomers(orgId);
-        } catch (Exception e) {
-            log.error("Error fetching today's customers orgId={}: {}", orgId, e.getMessage(), e);
-            throw e;
-        }
+        return customerService.getTodayCustomers(orgId);
     }
 
     @GetMapping("/week")
     public List<CustomerResponse> getWeek(@PathVariable String orgId) {
-        try {
-            return customerService.getWeekCustomers(orgId);
-        } catch (Exception e) {
-            log.error("Error fetching week customers orgId={}: {}", orgId, e.getMessage(), e);
-            throw e;
-        }
+        return customerService.getWeekCustomers(orgId);
     }
 
     @GetMapping("/month")
     public List<CustomerResponse> getMonth(@PathVariable String orgId) {
-        try {
-            return customerService.getMonthCustomers(orgId);
-        } catch (Exception e) {
-            log.error("Error fetching month customers orgId={}: {}", orgId, e.getMessage(), e);
-            throw e;
-        }
+        return customerService.getMonthCustomers(orgId);
     }
 
     @GetMapping("/range")
@@ -166,13 +151,9 @@ public class CustomerController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to
     ) {
-        try {
-            return customerService.getCustomersByDateRange(orgId, from, to);
-        } catch (Exception e) {
-            log.error("Error fetching range customers orgId={} from={} to={}: {}", orgId, from, to, e.getMessage(), e);
-            throw e;
-        }
+        return customerService.getCustomersByDateRange(orgId, from, to);
     }
+
 
     @PutMapping("/{id}/lifecycle-status")
     public CustomerResponse updateLifecycleStatus(

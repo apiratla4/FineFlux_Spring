@@ -38,10 +38,11 @@ public class InventoryController {
     public ResponseEntity<List<InventoryResponseDTO>> update(
             @PathVariable String orgId,
             @PathVariable String productId,
+            @PathVariable String empId,
             @RequestBody InventoryUpdateDTO dto) {
         try {
             log.info("Updating inventory for orgId={}, productId={}", orgId, productId);
-            List<InventoryResponseDTO> updatedList = inventoryService.updateInventory(orgId, productId, dto);
+            List<InventoryResponseDTO> updatedList = inventoryService.updateInventory(orgId, productId, empId,dto);
             log.debug("Inventory updated successfully for productId={}", productId);
             return ResponseEntity.ok(updatedList);
         } catch (Exception e) {

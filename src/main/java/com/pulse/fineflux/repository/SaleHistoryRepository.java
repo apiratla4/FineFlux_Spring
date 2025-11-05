@@ -11,17 +11,15 @@ import java.util.List;
 @Repository
 public interface SaleHistoryRepository extends MongoRepository<SaleHistory, String> {
 
-    List<SaleHistory> findByOrganizationId(String orgId);
+    List<SaleHistory> findByOrganizationIdOrderByDateTimeDesc(String organizationId);
+
 
     List<SaleHistory> findByOrganizationIdAndDateTimeBetween(String orgId, LocalDateTime from, LocalDateTime to);
-    List<SaleHistory> findByOrganizationIdAndEmpIdAndProductNameAndGunsAndDateTime(
-            String organizationId,
-            String empId,
-            String productName,
-            String guns,
-            java.time.LocalDateTime dateTime
-    );
-    List<SaleHistory> findAllByOrganizationIdAndProductNameAndGuns(String organizationId, String productName, String guns);
+
+    List<SaleHistory> findByOrganizationIdAndDateTimeBetweenOrderByDateTimeAsc(String organizationId, LocalDateTime from, LocalDateTime to);
+
+    List<SaleHistory> findByOrganizationIdOrderByDateTimeDesc(String organizationId, String productName, String guns);
+    List<SaleHistory> findByOrganizationIdOrderByDateTimeAsc(String organizationId);
 
 }
 
