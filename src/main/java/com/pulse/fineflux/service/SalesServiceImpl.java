@@ -152,6 +152,10 @@ public class SalesServiceImpl implements SalesService {
                         inventory.setStockValue(updatedStockValue);
                         inventoryRepository.save(inventory);
 
+                        LocalDateTime utcDeleteTime1 = LocalDateTime.now(ZoneId.of("Asia/Kolkata"))
+                                .atZone(ZoneId.of("Asia/Kolkata"))
+                                .withZoneSameInstant(ZoneId.of("UTC"))
+                                .toLocalDateTime();
                         InventoryLog logEntry = InventoryLog.builder()
                                 .inventoryId(inventory.getInventoryId())
                                 .organizationId(inventory.getOrganizationId())
@@ -159,7 +163,7 @@ public class SalesServiceImpl implements SalesService {
                                 .productName(inventory.getProductName())
                                 .totalCapacity(inventory.getTotalCapacity())
                                 .stockValue(updatedStockValue)
-                                .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata"))) // Always current IST time!
+                                .lastUpdated(utcDeleteTime1) // Always current IST time!
                                 .empId(dto.getEmpId())
                                 .currentLevel(updatedInv)
                                 .metric(inventory.getMetric())
