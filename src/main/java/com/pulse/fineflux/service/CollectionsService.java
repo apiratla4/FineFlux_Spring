@@ -7,7 +7,8 @@ import java.util.List;
 public interface CollectionsService {
     CollectionsResponseDTO create(CollectionsCreateDTO dto);
     CollectionsResponseDTO update(String id, CollectionsUpdateDTO dto);
-    CollectionsResponseDTO getById(String id);
     List<CollectionsResponseDTO> getAll(String organizationId);
     void delete(String id);
+    CollectionsResponseDTO getBySaleId(String saleId);
+
 }
