@@ -44,16 +44,18 @@ public class CollectionsController {
         }
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<CollectionsResponseDTO> getById(@PathVariable String id) {
+
+    @GetMapping("/by-sale/{saleId}")
+    public ResponseEntity<CollectionsResponseDTO> getBySaleId(@PathVariable String saleId) {
         try {
-            CollectionsResponseDTO dto = collectionsService.getById(id);
+            CollectionsResponseDTO dto = collectionsService.getBySaleId(saleId);
             return ResponseEntity.ok(dto);
         } catch (Exception e) {
-            log.error("Error getting collection by id={}: {}", id, e.getMessage(), e);
+            log.error("Error fetching collection by saleId={}: {}", saleId, e.getMessage(), e);
             return ResponseEntity.notFound().build();
         }
     }
+
 
     @GetMapping
     public ResponseEntity<List<CollectionsResponseDTO>> getAll(@PathVariable String orgId) {

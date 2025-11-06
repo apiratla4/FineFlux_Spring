@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -40,15 +41,21 @@ public class SaleHistoryServiceImpl implements SaleHistoryService {
 
 
     private SaleHistoryResponseDTO toResponse(SaleHistory h) {
-        ZonedDateTime istZonedDateTime = h.getDateTime() != null
-                ? h.getDateTime().atZone(ZoneId.of("UTC")).withZoneSameInstant(ZoneId.of("Asia/Kolkata"))
-                : null;
+        // Assume h.getDateTime() is stored in UTC (recommended) and convert once to IST for UI [web:22][web:215]
+        LocalDateTime utcStored = h.getDateTime(); // UTC in DB [web:215]
+        ZonedDateTime istZdt = null;
+        if (utcStored != null) {
+            istZdt = utcStored
+                    .atZone(ZoneId.of("UTC"))
+                    .withZoneSameInstant(ZoneId.of("Asia/Kolkata")); // preserve instant, render in IST [web:22]
+        }
 
+        // Build response: dateTime=IST LocalDateTime (for UI grids), dateTimeString=ISO string with +05:30 [web:22]
         return SaleHistoryResponseDTO.builder()
                 .id(h.getId())
                 .organizationId(h.getOrganizationId())
-                .dateTime(istZonedDateTime != null ? istZonedDateTime.toLocalDateTime() : null) // optional, for display
-                .dateTimeString(istZonedDateTime != null ? istZonedDateTime.toString() : null)   // 👈 NEW FIELD (ISO string with +05:30)
+                .dateTime(istZdt != null ? istZdt.toLocalDateTime() : null) // IST local date-time for UI [web:22]
+                .dateTimeString(istZdt != null ? istZdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) : null) // ISO with +05:30 [web:221]
                 .productName(h.getProductName())
                 .guns(h.getGuns())
                 .empId(h.getEmpId())
@@ -65,5 +72,6 @@ public class SaleHistoryServiceImpl implements SaleHistoryService {
                 .receivedTotal(h.getReceivedTotal())
                 .build();
     }
+
 
 }

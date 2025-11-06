@@ -116,28 +116,43 @@ public class CollectionsServiceImpl implements CollectionsService {
 
         // 9) Write SaleHistory only if a sale was matched
         if (matchingSale != null) {
-            SaleHistory history = SaleHistory.builder()
-                    .saleId(matchingSale.getSaleId()) // stable link for downstream reporting [web:12][web:17]
-                    .organizationId(matchingSale.getOrganizationId())
-                    .dateTime(istSecond)
-                    .productName(productNorm)
-                    .guns(gunsNorm)
-                    .empId(matchingSale.getEmpId())
-                    .openingStock(matchingSale.getOpeningStock())
-                    .closingStock(matchingSale.getClosingStock())
-                    .testingTotal(matchingSale.getTestingTotal())
-                    .salesInLiters(matchingSale.getSalesInLiters())
-                    .price(matchingSale.getPrice())
-                    .salesInRupees(matchingSale.getSalesInRupees())
-                    .cashReceived(saved.getCashReceived())
-                    .phonePay(saved.getPhonePay())
-                    .creditCard(saved.getCreditCard())
-                    .shortCollections(saved.getShortCollections())
-                    .receivedTotal(saved.getReceivedTotal())
-                    .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
-                    .build();
-            saleHistoryRepository.save(history); // manual reference write [web:2][web:5]
-            log.info("SaleHistory inserted with saleId={} orgId={}", matchingSale.getSaleId(), matchingSale.getOrganizationId());
+            // 1) Derive canonical UTC time from your IST second (istSecond is IST-local) [web:22][web:215]
+            LocalDateTime utcEventTime = istSecond
+                    .atZone(ZoneId.of("Asia/Kolkata"))
+                    .withZoneSameInstant(ZoneId.of("UTC"))
+                    .toLocalDateTime(); // store UTC in DB for consistency [web:22][web:215]
+
+            // 2) Upsert the "create" snapshot to avoid duplicates (one per sale) [web:135][web:134]
+            Optional<SaleHistory> existing = saleHistoryRepository
+                    .findByOrganizationIdAndSaleIdAndMutationby(matchingSale.getOrganizationId(), matchingSale.getSaleId(), "create"); // add repo method [web:57][web:60]
+
+            SaleHistory history = existing.orElseGet(SaleHistory::new);
+            existing.ifPresent(h -> history.setId(h.getId())); // ensure update, not insert [web:14]
+
+            history.setSaleId(matchingSale.getSaleId());
+            history.setOrganizationId(matchingSale.getOrganizationId());
+            history.setDateTime(utcEventTime); // store UTC canonical timestamp [web:22][web:215]
+            history.setProductName(productNorm);
+            history.setGuns(gunsNorm);
+            history.setEmpId(matchingSale.getEmpId());
+            history.setOpeningStock(matchingSale.getOpeningStock());
+            history.setClosingStock(matchingSale.getClosingStock());
+            history.setTestingTotal(matchingSale.getTestingTotal());
+            history.setSalesInLiters(matchingSale.getSalesInLiters());
+            history.setPrice(matchingSale.getPrice());
+            history.setSalesInRupees(matchingSale.getSalesInRupees());
+
+            // Collection snapshot fields update on every collection write [web:14]
+            history.setCashReceived(saved.getCashReceived());
+            history.setPhonePay(saved.getPhonePay());
+            history.setCreditCard(saved.getCreditCard());
+            history.setShortCollections(saved.getShortCollections());
+            history.setReceivedTotal(saved.getReceivedTotal());
+            history.setMutationby("create"); // stable discriminator for unique index [web:135][web:134]
+            history.setLastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")));
+
+            saleHistoryRepository.save(history); // upsert-like via pre-lookup + save [web:14]
+            log.info("SaleHistory upserted (create snapshot) saleId={} orgId={}", matchingSale.getSaleId(), matchingSale.getOrganizationId());
         } else {
             log.warn("No matching Sale found for key={}, product={}, guns={}, price={}; expectedTotal set to 0.0",
                     saleMatchKey, productNorm, gunsNorm, dto.getPrice());
@@ -207,19 +222,19 @@ public class CollectionsServiceImpl implements CollectionsService {
     }
 
     @Override
-    public CollectionsResponseDTO getById(String id) {
-        Collections entity = collectionsRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Collection not found"));
-        return convertToResponse(entity);
-    }
-
-    @Override
     public List<CollectionsResponseDTO> getAll(String organizationId) {
         log.info("Fetching all collections for organizationId: {}", organizationId);
         return collectionsRepository.findByOrganizationId(organizationId)
                 .stream()
                 .map(this::convertToResponse)
                 .toList();
+    }
+
+    @Override
+    public CollectionsResponseDTO getBySaleId(String saleId) {
+        Collections collection = collectionsRepository.findBySaleId(saleId)
+                .orElseThrow(() -> new RuntimeException("Collection not found for saleId: " + saleId));
+        return convertToResponse(collection);
     }
 
     @Override
@@ -232,5 +247,6 @@ public class CollectionsServiceImpl implements CollectionsService {
         BeanUtils.copyProperties(entity, dto);
         return dto;
     }
+
 
 }
