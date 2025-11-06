@@ -165,7 +165,7 @@ public class SalesServiceImpl implements SalesService {
                                 .metric(inventory.getMetric())
                                 .status(inventory.getStatus())
                                 .tankCapacity(inventory.getTankCapacity())
-                                .mutationby("inventory sale create by " + dto.getEmpId())
+                                .mutationby("inventory sale entry created by " + dto.getEmpId())
                                 .build();
 
                         inventoryLogRepository.save(logEntry);
@@ -240,7 +240,7 @@ public class SalesServiceImpl implements SalesService {
             return toResponse(updated);
         } catch (Exception e) {
             log.error("Error updating sale id={}: {}", id, e.getMessage(), e);
-            throw new RuntimeException("Error updating sale: " + e.getMessage());
+            throw new RuntimeException("Error updating sale " + e.getMessage());
         }
     }
 
@@ -354,20 +354,24 @@ public class SalesServiceImpl implements SalesService {
                 inv.setStockValue(price.multiply(inv.getCurrentLevel()));
                 inventoryRepository.save(inv);
 
+                LocalDateTime utcDeleteTimes = LocalDateTime.now(ZoneId.of("Asia/Kolkata"))
+                        .atZone(ZoneId.of("Asia/Kolkata"))
+                        .withZoneSameInstant(ZoneId.of("UTC"))
+                        .toLocalDateTime();
                 // Optionally, insert reversal log
                 InventoryLog log = InventoryLog.builder()
                         .inventoryId(inv.getInventoryId())
                         .organizationId(inv.getOrganizationId())
                         .productId(inv.getProductId())
                         .productName(inv.getProductName())
-                        .lastUpdated(ZonedDateTime.now(ZoneId.of("Asia/Kolkata")).withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime())
+                        .lastUpdated(utcDeleteTimes)
                         .empId(employeeId)
                         .currentLevel(inv.getCurrentLevel())
                         .stockValue(inv.getStockValue())
                         .metric(inv.getMetric())
                         .status(inv.getStatus())
                         .tankCapacity(inv.getTankCapacity())
-                        .mutationby("Sale Entry Deleted By :" + employeeId)
+                        .mutationby(" Sale Entry Deleted By " + employeeId)
                         .build();
                 inventoryLogRepository.save(log);
             }
@@ -387,7 +391,7 @@ public class SalesServiceImpl implements SalesService {
 
         } catch (Exception e) {
             log.error("Error deleting sale id={}: {}",  e.getMessage(), e);
-            throw new RuntimeException("Error deleting sale: " + e.getMessage());
+            throw new RuntimeException("Error deleting sale " + e.getMessage());
         }
     }
 
