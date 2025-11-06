@@ -16,4 +16,5 @@ public class SalesCreateDTO {
     private float salesInRupees;
     private LocalDateTime dateTime;
     private String guns;
+
 }

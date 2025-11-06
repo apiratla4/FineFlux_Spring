@@ -34,23 +34,22 @@ public class InventoryController {
         }
     }
 
-    @PutMapping("/{productId}")
+    @PutMapping("/{productId}/employees/{empId}")
     public ResponseEntity<List<InventoryResponseDTO>> update(
             @PathVariable String orgId,
             @PathVariable String productId,
             @PathVariable String empId,
             @RequestBody InventoryUpdateDTO dto) {
         try {
-            log.info("Updating inventory for orgId={}, productId={}", orgId, productId);
-            List<InventoryResponseDTO> updatedList = inventoryService.updateInventory(orgId, productId, empId,dto);
-            log.debug("Inventory updated successfully for productId={}", productId);
+            log.info("Updating inventory for orgId={}, productId={} by empId={}", orgId, productId, empId);
+            List<InventoryResponseDTO> updatedList = inventoryService.updateInventory(orgId, productId, empId, dto);
             return ResponseEntity.ok(updatedList);
         } catch (Exception e) {
-            log.error("Error updating inventory for orgId={}, productId={}", orgId, productId, e);
+            log.error("Error updating inventory for orgId={}, productId={}, empId={}", orgId, productId, empId, e);
             return ResponseEntity.status(500).build();
         }
-    }
 
+    }
     @GetMapping
     public ResponseEntity<List<InventoryResponseDTO>> list(@PathVariable String orgId) {
         try {

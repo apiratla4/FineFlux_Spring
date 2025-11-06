@@ -119,24 +119,25 @@ public class InventoryServiceImpl implements InventoryService {
     // ADD/UPDATE via PUT (ALWAYS send only increment! This will update cumulative total)
     @Override
     @Transactional
-    public List<InventoryResponseDTO> updateInventory(String orgId, String productId,  String empId, InventoryUpdateDTO dto) {
+    public List<InventoryResponseDTO> updateInventory(String orgId, String productId, String empId, InventoryUpdateDTO dto) {
         try {
-            log.info("Updating inventory for orgId={}, productId={}", orgId, productId);
+            log.info("Updating inventory for orgId={}, productId={} by empId={}", orgId, productId, empId);
 
             Product product = productRepository.findByIdAndOrganizationId(productId, orgId)
-                    .orElseThrow(() -> new RuntimeException("Product not found"));
+                    .orElseThrow(() -> new RuntimeException("Product not found")); // repository find [web:14]
 
             BigDecimal increment = dto.getCurrentLevel() != null ? dto.getCurrentLevel() : BigDecimal.ZERO;
             BigDecimal prevTotal = product.getCurrentLevel() != null ? product.getCurrentLevel() : BigDecimal.ZERO;
             BigDecimal newTotal = prevTotal.add(increment);
 
             if (product.getTankCapacity() != null && newTotal.compareTo(product.getTankCapacity()) > 0) {
-                throw new IllegalStateException("Tank overflow! Too much stock");
+                throw new IllegalStateException("Tank overflow! Too much stock"); // validation [web:110]
             }
 
             BigDecimal price = product.getPrice() != null ? BigDecimal.valueOf(product.getPrice()) : BigDecimal.ZERO;
             BigDecimal computedStockValue = price.multiply(newTotal);
 
+            // Persist latest inventory snapshot
             Inventory inventory = Inventory.builder()
                     .organizationId(orgId)
                     .productId(productId)
@@ -144,18 +145,20 @@ public class InventoryServiceImpl implements InventoryService {
                     .totalCapacity(dto.getTotalCapacity())
                     .stockValue(computedStockValue)
                     .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
-                    .empId(empId)
+                    .empId(empId) // FIX: set current operator here
                     .currentLevel(newTotal)
                     .metric(dto.getMetric())
                     .status(dto.getStatus())
                     .tankCapacity(dto.getTankCapacity())
                     .build();
 
-            Inventory savedRecord = inventoryRepository.save(inventory);
+            Inventory savedRecord = inventoryRepository.save(inventory); // repository save [web:14]
 
+            // Update product current level
             product.setCurrentLevel(newTotal);
-            productRepository.save(product);
+            productRepository.save(product); // repository save [web:14]
 
+            // Write inventory history log (immutable trail)
             InventoryLog historyLog = InventoryLog.builder()
                     .inventoryId(savedRecord.getInventoryId())
                     .organizationId(savedRecord.getOrganizationId())
@@ -164,64 +167,29 @@ public class InventoryServiceImpl implements InventoryService {
                     .totalCapacity(savedRecord.getTotalCapacity())
                     .stockValue(computedStockValue)
                     .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
-                    .empId(savedRecord.getEmpId())
+                    .empId(empId) // FIX: log the same operator who updated
                     .currentLevel(savedRecord.getCurrentLevel())
                     .metric(savedRecord.getMetric())
                     .status(savedRecord.getStatus())
                     .tankCapacity(savedRecord.getTankCapacity())
-                    .receiptQuantityInLitres(dto.getCurrentLevel() != null ? dto.getCurrentLevel().doubleValue() : 0.0) // The *increment* (e.g., 100)
-                    .mutationby("inventory Stock updated by " + dto.getEmpId())
+                    .receiptQuantityInLitres(increment.doubleValue()) // the increment only
+                    .mutationby("inventory Stock updated by " + empId) // FIX: based on current operator
                     .build();
             inventoryLogRepository.save(historyLog);
             financeSummaryService.autoCreateFinanceSummary(savedRecord.getOrganizationId());
-           //profitLossService.calculateAndSaveProfitLoss(orgId);
 
-          /*  // --------- INVENTORY EXPENSES LOGIC INTEGRATION (PER-INCREMENT ONLY) -----------
-            try {
-                var inventoryCategory = expenseCategoryRepository.findByCategoryNameAndOrganizationId("inventory", orgId);
+            // Build and return response list as per your implementation
+            return inventoryRepository.findAllByOrganizationIdAndProductId(orgId, productId)
+                    .stream()
+                    .map(this::mapToResponse) // FIX: use the existing mapper
+                    .toList(); // if on Java <16, use .collect(Collectors.toList())
 
-                if (inventoryCategory.isPresent()) {
-                    // Calculate only for the increment (not total). E.g., added 100, price 97.56 => only 9756 logged
-                    BigDecimal increment1 = dto.getCurrentLevel() != null ? dto.getCurrentLevel() : BigDecimal.ZERO;
-                    BigDecimal productprice = increment1.multiply(price); // use current product price
 
-                    if (increment.compareTo(BigDecimal.ZERO) > 0) { // only positive increments
-                        Expense expense = Expense.builder()
-                                .description("inventory expenses")
-                                .amount(productprice.doubleValue())
-                                .categoryName("inventory")
-                                .expenseDate(java.time.LocalDate.now())
-                                .createdAt(LocalDateTime.now())
-                                .organizationId(orgId)
-                                .empId(dto.getEmpId())
-                                .build();
-
-                        expenseRepository.save(expense);
-                        log.info("Auto-inserted inventory expense for orgId={}, productId={}, increment={}, amount={}", orgId, productId, increment, productprice);
-                    } else {
-                        log.info("Inventory increment is zero or negative ({}), skipping expense insert", increment);
-                    }
-                } else {
-                    log.info("No 'inventory' category found for orgId={}, not inserting inventory expense", orgId);
-                }
-            } catch(Exception ex) {
-                log.error("Error inserting inventory expense for orgId={} productId={}: {}", orgId, productId, ex.getMessage(), ex);
-            }
-// --------- END INVENTORY EXPENSES LOGIC -----------
-
-           */
-
-            log.debug("Inventory updated: total={}, stockValue={}, inventoryId={}", newTotal, computedStockValue, savedRecord.getInventoryId());
-
-            return inventoryRepository.findAllByOrganizationId(orgId).stream()
-                    .map(this::mapToResponse)
-                    .collect(Collectors.toList());
         } catch (Exception e) {
-            log.error("Error updating inventory productId={} orgId={}", productId, orgId, e);
-            throw e;
+            log.error("Error updating inventory for orgId={}, productId={}, empId={}: {}", orgId, productId, empId, e.getMessage(), e);
+            throw new RuntimeException("Error updating inventory: " + e.getMessage()); // consistent error path [web:110]
         }
     }
-
 
     @Override
     public List<InventoryResponseDTO> getAllInventories(String orgId) {

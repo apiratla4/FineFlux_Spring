@@ -16,6 +16,9 @@ public class Sales {
 
     @Id
     private String id;
+
+    // Business reference to link Collection and History
+    private String saleId; // UUID string
     private String organizationId;
     private LocalDateTime dateTime;
     private String productName;   // fetched from Product
@@ -27,4 +30,8 @@ public class Sales {
     private double salesInLiters;
     private double price;
     private float salesInRupees;
+
+    // Derived key at second resolution for robust match
+    private String saleMatchKey;
+
 }

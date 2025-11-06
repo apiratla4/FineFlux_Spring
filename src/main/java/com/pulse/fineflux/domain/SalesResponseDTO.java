@@ -19,4 +19,5 @@ public class SalesResponseDTO {
     private double salesInLiters;
     private double price;
     private float salesInRupees;
+    private String saleId;
 }

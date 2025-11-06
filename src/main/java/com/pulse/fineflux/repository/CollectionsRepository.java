@@ -13,7 +13,7 @@ public interface CollectionsRepository extends MongoRepository<Collections, Stri
     List<Collections> findByOrganizationIdAndDateTimeBetween(String organizationId, LocalDateTime from, LocalDateTime to);
 
     List<Collections> findAllByOrganizationIdAndProductNameAndGuns(String organizationId, String productName, String guns);
-
+    Long deleteByOrganizationIdAndSaleId(String organizationId, String saleId);
 
 }
 
