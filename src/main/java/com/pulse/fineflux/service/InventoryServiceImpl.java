@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -69,13 +70,16 @@ public class InventoryServiceImpl implements InventoryService {
             BigDecimal price = product.getPrice() != null ? BigDecimal.valueOf(product.getPrice()) : BigDecimal.ZERO;
             BigDecimal stockValue = price.multiply(newCurrentLevel);
 
+            // ---- STORE IST WITH OFFSET (ZonedDateTime for correct serialization) ----
+            ZonedDateTime istNow = ZonedDateTime.now(ZoneId.of("Asia/Kolkata"));
+
             Inventory inventory = Inventory.builder()
                     .organizationId(dto.getOrganizationId())
                     .productId(dto.getProductId())
                     .productName(product.getProductName())
                     .totalCapacity(totalCapacity)
                     .stockValue(stockValue)
-                    .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
+                    .lastUpdated(istNow.toLocalDateTime()) // store as ZonedDateTime!
                     .empId(dto.getEmpId())
                     .currentLevel(newCurrentLevel)
                     .metric(dto.getMetric())
@@ -84,7 +88,6 @@ public class InventoryServiceImpl implements InventoryService {
                     .build();
 
             Inventory savedInventory = inventoryRepository.save(inventory);
-
             product.setCurrentLevel(newCurrentLevel);
             productRepository.save(product);
 
@@ -137,6 +140,7 @@ public class InventoryServiceImpl implements InventoryService {
             BigDecimal price = product.getPrice() != null ? BigDecimal.valueOf(product.getPrice()) : BigDecimal.ZERO;
             BigDecimal computedStockValue = price.multiply(newTotal);
 
+            LocalDateTime istTime = LocalDateTime.now(ZoneId.of("Asia/Kolkata"));
             // Persist latest inventory snapshot
             Inventory inventory = Inventory.builder()
                     .organizationId(orgId)
@@ -144,7 +148,7 @@ public class InventoryServiceImpl implements InventoryService {
                     .productName(product.getProductName())
                     .totalCapacity(dto.getTotalCapacity())
                     .stockValue(computedStockValue)
-                    .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
+                    .lastUpdated(istTime)
                     .empId(empId) // FIX: set current operator here
                     .currentLevel(newTotal)
                     .metric(dto.getMetric())
@@ -166,7 +170,7 @@ public class InventoryServiceImpl implements InventoryService {
                     .productName(savedRecord.getProductName())
                     .totalCapacity(savedRecord.getTotalCapacity())
                     .stockValue(computedStockValue)
-                    .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
+                    .lastUpdated(savedRecord.getLastUpdated())
                     .empId(empId) // FIX: log the same operator who updated
                     .currentLevel(savedRecord.getCurrentLevel())
                     .metric(savedRecord.getMetric())

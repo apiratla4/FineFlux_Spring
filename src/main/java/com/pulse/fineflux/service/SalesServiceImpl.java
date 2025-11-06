@@ -159,12 +159,13 @@ public class SalesServiceImpl implements SalesService {
                                 .productName(inventory.getProductName())
                                 .totalCapacity(inventory.getTotalCapacity())
                                 .stockValue(updatedStockValue)
-                                .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
+                                .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata"))) // Always current IST time!
                                 .empId(dto.getEmpId())
                                 .currentLevel(updatedInv)
                                 .metric(inventory.getMetric())
                                 .status(inventory.getStatus())
                                 .tankCapacity(inventory.getTankCapacity())
+                                .mutationby("inventory sale create by " + dto.getEmpId())
                                 .build();
 
                         inventoryLogRepository.save(logEntry);
