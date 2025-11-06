@@ -7,6 +7,7 @@ import com.pulse.fineflux.entity.SaleHistory;
 import com.pulse.fineflux.repository.CollectionsRepository;
 import com.pulse.fineflux.repository.SalesRepository;
 import com.pulse.fineflux.repository.SaleHistoryRepository;
+import com.pulse.fineflux.utill.SaleMatch;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -31,90 +32,96 @@ public class CollectionsServiceImpl implements CollectionsService {
 
     @Override
     public CollectionsResponseDTO create(CollectionsCreateDTO dto) {
-        log.info("Creating collection for orgId={}, empId={}, product={}, guns={}, price={}, dateTime={}",
+        log.info("Creating collection orgId={}, empId={}, product={}, guns={}, price={}, dateTime={}",
                 dto.getOrganizationId(), dto.getEmpId(), dto.getProductName(), dto.getGuns(), dto.getPrice(), dto.getDateTime());
 
         if (dto.getDateTime() == null) {
             throw new IllegalArgumentException("dateTime is required for collection creation");
         }
 
-        // Convert to IST
-        LocalDateTime istDateTime = dto.getDateTime()
-                .atZone(ZoneId.systemDefault())
-                .withZoneSameInstant(IST_ZONE)
-                .toLocalDateTime();
+        // 1) Normalize to IST second
+        LocalDateTime istSecond = SaleMatch.toIstSecondPlus50(dto.getDateTime(), ZoneId.systemDefault()); // withZoneSameInstant → toLocalDateTime → truncatedTo(SECONDS) [web:23][web:29]
 
-        // Normalize (force lower case for matching and storage)
-        String normProduct = dto.getProductName().trim().toLowerCase();
-        String normGuns = dto.getGuns().trim().toLowerCase();
-        String displayProduct = dto.getProductName().trim();
-        String displayGuns = dto.getGuns().trim();
+        // 2) Normalize keys + keep display
+        String productDisplay = dto.getProductName().trim();
+        String gunsDisplay = dto.getGuns().trim();
+        String productNorm = SaleMatch.normalize(productDisplay); // lower-case, trimmed [web:16]
+        String gunsNorm = SaleMatch.normalize(gunsDisplay); // lower-case, trimmed [web:16]
 
-        // Create collections entity and normalize product/guns
-        Collections entity = new Collections();
-        BeanUtils.copyProperties(dto, entity);
-        entity.setDateTime(istDateTime);
-        entity.setProductName(normProduct);
-        entity.setGuns(normGuns);
+        // 3) Build deterministic match-key at second precision
+        String saleMatchKey = SaleMatch.buildKey(istSecond, productNorm, gunsNorm, dto.getPrice()); // "yyyy-MM-dd'T'HH:mm:ss|product|guns|price" [web:2][web:5]
 
-        // IST day window logic
-        LocalDateTime dayStart = istDateTime.toLocalDate().atStartOfDay();
-        LocalDateTime dayEnd = dayStart.plusDays(1);
+        // 4) Try exact match by org + match key (fast path)
+        Sales matchingSale = salesRepository
+                .findByOrganizationIdAndSaleMatchKey(dto.getOrganizationId(), saleMatchKey)
+                .orElse(null); // manual-ref style lookup [web:2][web:5]
 
-        log.info("Sales query for orgId={} empId={} product={} guns={} price={} between {} and {}",
-                dto.getOrganizationId(), dto.getEmpId(), normProduct, normGuns, dto.getPrice(), dayStart, dayEnd);
+        // 5) Fallback: your original day-window search capped at collection time
+        if (matchingSale == null) {
+            LocalDateTime dayStart = istSecond.toLocalDate().atStartOfDay();
+            LocalDateTime dayEnd = dayStart.plusDays(1);
+            final double EPSILON = 0.01;
 
-        List<Sales> salesList = salesRepository.findSalesForCollection(
-                dto.getOrganizationId(), dto.getEmpId(), normProduct, normGuns, dayStart, dayEnd
-        );
+            List<Sales> salesList = salesRepository.findSalesForCollection(
+                    dto.getOrganizationId(), dto.getEmpId(), productNorm, gunsNorm, dayStart, dayEnd
+            );
 
-        log.info("Sales query returned {} rows", salesList.size());
-        for (Sales sale : salesList) {
-            log.info("SALE: orgId={}, empId={}, product={}, guns={}, dateTime={}, price={}, salesInRupees={}",
-                    sale.getOrganizationId(), sale.getEmpId(), sale.getProductName(), sale.getGuns(),
-                    sale.getDateTime(), sale.getPrice(), sale.getSalesInRupees());
+            matchingSale = salesList.stream()
+                    .filter(s -> s.getProductName().equals(productNorm)
+                            && s.getGuns().equals(gunsNorm)
+                            && Math.abs(s.getPrice() - dto.getPrice()) < EPSILON
+                            && !s.getDateTime().isAfter(istSecond))
+                    .max(Comparator.comparing(Sales::getDateTime))
+                    .orElse(null); // preserves your original selection rule [web:14]
         }
 
-        final double EPSILON = 0.01; // Accept 1 paisa as equal! Change as needed.
-
-        Sales matchingSale = salesList.stream()
-                .filter(s -> s.getProductName().trim().equalsIgnoreCase(normProduct)
-                        && s.getGuns().trim().equalsIgnoreCase(normGuns)
-                        && Math.abs(s.getPrice() - dto.getPrice()) < EPSILON
-                        && !s.getDateTime().isAfter(istDateTime)) // Key line: only sales up to collection time!
-                .max(Comparator.comparing(Sales::getDateTime))
-                .orElse(null);
-
-
+        // 6) Money math
         double expectedTotal = (matchingSale != null) ? matchingSale.getSalesInRupees() : 0.0;
         double receivedTotal = dto.getCashReceived() + dto.getPhonePay() + dto.getCreditCard();
-
         double difference = receivedTotal - expectedTotal;
-        double accessCollections;
+
+        // 7) Build collection entity
+        Collections entity = new Collections();
+        entity.setOrganizationId(dto.getOrganizationId());
+        entity.setEmpId(dto.getEmpId());
+        entity.setDateTime(istSecond);
+        entity.setProductName(productNorm);
+        entity.setGuns(gunsNorm);
+        entity.setExpectedTotal(expectedTotal);
+        entity.setReceivedTotal(receivedTotal);
 
         if (difference > 0) {
-            accessCollections = difference;
-            entity.setAccessCollections(accessCollections); // <--- persist excess!
+            entity.setAccessCollections(difference);
             entity.setShortCollections(0.0);
         } else {
-            accessCollections = 0.0;
             entity.setAccessCollections(0.0);
             entity.setShortCollections(expectedTotal - receivedTotal);
         }
 
-        entity.setExpectedTotal(expectedTotal);
-        entity.setReceivedTotal(receivedTotal);
-        Collections saved = collectionsRepository.save(entity);
+        if (matchingSale != null) {
+            entity.setSaleId(matchingSale.getSaleId());          // stable UUID from Sales [web:12][web:17]
+            entity.setSaleMatchKey(matchingSale.getSaleMatchKey()); // store the deterministic key [web:2][web:5]
+        } else {
+            entity.setSaleId(null);
+            entity.setSaleMatchKey(saleMatchKey); // attempted key for diagnostics [web:2][web:5]
+        }
 
-        financeSummaryService.autoCreateFinanceSummary(saved.getOrganizationId());
+        entity.setCashReceived(dto.getCashReceived());
+        entity.setPhonePay(dto.getPhonePay());
+        entity.setCreditCard(dto.getCreditCard());
 
-        // Only save SaleHistory if matching sale found
+        // 8) Persist and trigger finance summary
+        Collections saved = collectionsRepository.save(entity); // standard Spring Data Mongo save [web:14]
+        financeSummaryService.autoCreateFinanceSummary(saved.getOrganizationId()); // keep existing trigger [web:14]
+
+        // 9) Write SaleHistory only if a sale was matched
         if (matchingSale != null) {
             SaleHistory history = SaleHistory.builder()
+                    .saleId(matchingSale.getSaleId()) // stable link for downstream reporting [web:12][web:17]
                     .organizationId(matchingSale.getOrganizationId())
-                    .dateTime(LocalDateTime.now(ZoneId.of("Asia/Kolkata"))) // use IST for consistency
-                    .productName(normProduct)
-                    .guns(normGuns)
+                    .dateTime(istSecond)
+                    .productName(productNorm)
+                    .guns(gunsNorm)
                     .empId(matchingSale.getEmpId())
                     .openingStock(matchingSale.getOpeningStock())
                     .closingStock(matchingSale.getClosingStock())
@@ -127,25 +134,31 @@ public class CollectionsServiceImpl implements CollectionsService {
                     .creditCard(saved.getCreditCard())
                     .shortCollections(saved.getShortCollections())
                     .receivedTotal(saved.getReceivedTotal())
-                    .mutationby("sale create by " + saved.getEmpId())
                     .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
                     .build();
-            saleHistoryRepository.save(history);
-            log.info("SaleHistory inserted for saleId={} empId={} orgId={}",
-                    matchingSale.getId(), matchingSale.getEmpId(), matchingSale.getOrganizationId());
+            saleHistoryRepository.save(history); // manual reference write [web:2][web:5]
+            log.info("SaleHistory inserted with saleId={} orgId={}", matchingSale.getSaleId(), matchingSale.getOrganizationId());
         } else {
-            log.warn("No matching Sale found for: product={}, guns={}, price={}. expectedTotal set to 0.0.",
-                    normProduct, normGuns, dto.getPrice());
+            log.warn("No matching Sale found for key={}, product={}, guns={}, price={}; expectedTotal set to 0.0",
+                    saleMatchKey, productNorm, gunsNorm, dto.getPrice());
         }
 
-        CollectionsResponseDTO responseDto = convertToResponse(saved);
-        responseDto.setProductName(displayProduct);
-        responseDto.setGuns(displayGuns);
-        responseDto.setAccessCollections(accessCollections); // ONLY for UI/report, not stored in mongo
+        // 10) Build response with display names
+        CollectionsResponseDTO resp = new CollectionsResponseDTO();
+        resp.setId(saved.getId());
+        resp.setSaleId(saved.getSaleId());
+        resp.setOrganizationId(saved.getOrganizationId());
+        resp.setEmpId(saved.getEmpId());
+        resp.setDateTime(saved.getDateTime());
+        resp.setProductName(saved.getProductName());
+        resp.setGuns(saved.getGuns());
 
-        return responseDto;
+        resp.setExpectedTotal(saved.getExpectedTotal());
+        resp.setReceivedTotal(saved.getReceivedTotal());
+        resp.setShortCollections(saved.getShortCollections());
+        resp.setAccessCollections(saved.getAccessCollections());
+        return resp;
     }
-
 
     @Override
     public CollectionsResponseDTO update(String id, CollectionsUpdateDTO dto) {

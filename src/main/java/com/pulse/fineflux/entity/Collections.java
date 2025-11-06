@@ -15,7 +15,9 @@ public class Collections {
 
     @Id
     private String id;
-
+    // Link to sale
+    private String saleId; // when matched
+    private String saleMatchKey; // echo of key used to match
     private String organizationId;
     private LocalDateTime dateTime;
     private String empId;

@@ -23,4 +23,5 @@ public class CollectionsResponseDTO {
     private String productName;   // fetched from Product
     private String guns;
     private double accessCollections;
+    private String saleId;
 }

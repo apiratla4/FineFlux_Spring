@@ -27,4 +27,5 @@ public class SaleHistoryResponseDTO {
     private double receivedTotal;
     private String mutationby;
     private String dateTimeString;
+    private String uuid;
 }

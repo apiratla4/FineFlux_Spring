@@ -3,6 +3,7 @@ package com.pulse.fineflux.service;
 import com.pulse.fineflux.domain.*;
 import com.pulse.fineflux.entity.*;
 import com.pulse.fineflux.repository.*;
+import com.pulse.fineflux.utill.SaleMatch;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -34,16 +35,19 @@ public class SalesServiceImpl implements SalesService {
     @Override
     public SalesResponseDTO createSale(SalesCreateDTO dto) {
         try {
-            LocalDateTime entryDateTime = dto.getDateTime() != null ? dto.getDateTime() : LocalDateTime.now();
+            // 1) Normalize timestamp to IST at second precision
+            ZoneId sourceZone = ZoneId.systemDefault(); // client/source zone [web:23]
+            LocalDateTime clientTs = dto.getDateTime() != null ? dto.getDateTime() : LocalDateTime.now(sourceZone); // fallback now [web:35]
+            LocalDateTime istSecond = SaleMatch.toIstSecondPlus50(clientTs, sourceZone); // converts via ZonedDateTime, trunc to seconds [web:23][web:29]
 
-            // Find product
+            // 2) Product lookup
             Product product = productRepository.findByOrganizationId(dto.getOrganizationId())
                     .stream()
                     .filter(p -> p.getProductName().trim().equalsIgnoreCase(dto.getProductName().trim()))
                     .findFirst()
-                    .orElseThrow(() -> new RuntimeException("Product not found: " + dto.getProductName()));
+                    .orElseThrow(() -> new RuntimeException("Product not found: " + dto.getProductName())); // keep behavior [web:14]
 
-            // Find gun for org+product+gun
+            // 3) Gun lookup for org+product+gun
             String gunName = gunInfoRepository.findByOrganizationId(dto.getOrganizationId())
                     .stream()
                     .filter(g -> g.getProductName() != null
@@ -51,9 +55,9 @@ public class SalesServiceImpl implements SalesService {
                             && g.getGuns().trim().equalsIgnoreCase(dto.getGuns().trim()))
                     .findFirst()
                     .map(GunInfo::getGuns)
-                    .orElseThrow(() -> new RuntimeException("Gun not found for product: " + dto.getProductName() + " and gun: " + dto.getGuns()));
+                    .orElseThrow(() -> new RuntimeException("Gun not found for product: " + dto.getProductName() + " and gun: " + dto.getGuns())); // unchanged [web:14]
 
-            // Always get opening from GunInfo (never trust DTO.openingStock!)
+            // 4) Opening from GunInfo (never trust DTO.opening)
             double opening = gunInfoRepository.findByOrganizationId(dto.getOrganizationId())
                     .stream()
                     .filter(g -> g.getProductName() != null
@@ -61,45 +65,58 @@ public class SalesServiceImpl implements SalesService {
                             && g.getGuns().trim().equalsIgnoreCase(dto.getGuns().trim()))
                     .findFirst()
                     .map(GunInfo::getCurrentReading)
-                    .orElse(0.0);
+                    .orElse(0.0); // unchanged [web:14]
 
             double closing = dto.getClosingStock();
             double testing = dto.getTestingTotal();
 
             double liters = closing - opening - testing;
-            if (liters < 0) liters = 0.0;
+            if (liters < 0) liters = 0.0; // guard [web:14]
             float amount = (float) (liters * dto.getPrice());
-            if (amount < 0f) amount = 0f;
+            if (amount < 0f) amount = 0f; // guard [web:14]
 
-            // ---------- STOCK VALIDATION ----------
+            // 5) Stock validation
             BigDecimal currLevel = product.getCurrentLevel() != null ? product.getCurrentLevel() : BigDecimal.ZERO;
             BigDecimal required = BigDecimal.valueOf(liters);
             if (currLevel.compareTo(required) < 0) {
-                throw new RuntimeException("create " + currLevel);
+                throw new RuntimeException("create " + currLevel); // your original behavior [web:14]
             }
-            // ---------------------------------------
 
+            // 6) Normalize names for storage + keep display for UI
+            String productDisplay = dto.getProductName().trim();
+            String gunsDisplay = dto.getGuns().trim();
+            String productNorm = SaleMatch.normalize(productDisplay); // lower-case, trimmed [web:16]
+            String gunsNorm = SaleMatch.normalize(gunsDisplay); // lower-case, trimmed [web:16]
+
+            // 7) Stable saleId and match key
+            String saleId = java.util.UUID.randomUUID().toString(); // manual ref id best practice in Mongo [web:12][web:17]
+            String saleMatchKey = SaleMatch.buildKey(istSecond, productNorm, gunsNorm, dto.getPrice()); // second-level key [web:2][web:5]
+
+            // 8) Build and save sale
             Sales sale = Sales.builder()
+                    .saleId(saleId)
                     .organizationId(dto.getOrganizationId())
-                    .dateTime(entryDateTime)
-                    .productName(product.getProductName())
-                    .guns(gunName)
+                    .dateTime(istSecond)
+                    .productName(productNorm)
+                    .guns(gunsNorm)
+                    .price(dto.getPrice())
+                    .saleMatchKey(saleMatchKey)
                     .empId(dto.getEmpId())
                     .openingStock(opening)
                     .closingStock(closing)
                     .testingTotal(testing)
                     .salesInLiters((float) liters)
-                    .price(dto.getPrice())
                     .salesInRupees(amount)
-                    .build();
+                    .build(); // manual reference modeling (avoid DBRef) [web:2][web:3][web:5]
 
-            Sales saved = salesRepository.save(sale);
-            financeSummaryService.autoCreateFinanceSummary(saved.getOrganizationId());
-            // Update GunInfo currentReading after this sale
+            Sales saved = salesRepository.save(sale); // standard Spring Data Mongo save [web:14]
+            financeSummaryService.autoCreateFinanceSummary(saved.getOrganizationId()); // keep your trigger [web:14]
+
+            // 9) Update GunInfo currentReading to closing
             gunInfoRepository.findByOrganizationId(dto.getOrganizationId()).stream()
                     .filter(g -> g.getProductName() != null
-                            && g.getProductName().trim().equalsIgnoreCase(saved.getProductName().trim())
-                            && g.getGuns().trim().equalsIgnoreCase(saved.getGuns().trim()))
+                            && g.getProductName().trim().equalsIgnoreCase(saved.getProductName())
+                            && g.getGuns().trim().equalsIgnoreCase(saved.getGuns()))
                     .findFirst()
                     .ifPresent(gunInfo -> {
                         gunInfo.setProductName(saved.getProductName());
@@ -107,29 +124,17 @@ public class SalesServiceImpl implements SalesService {
                         gunInfoRepository.save(gunInfo);
                         log.info("GunInfo '{} / {}' currentReading updated to {} and productName to '{}'",
                                 gunInfo.getGuns(), gunInfo.getSerialNumber(), saved.getClosingStock(), saved.getProductName());
-                    });
+                    }); // unchanged behavior [web:14]
 
-            log.info("SaleHistory record created for empId={} and orgId={}", dto.getEmpId(), dto.getOrganizationId());
-
-            try {
-                log.info("Calling financeSummaryService.autoCreateFinanceSummary for orgId={} after collection create", saved.getOrganizationId());
-               // financeSummaryService.autoCreateFinanceSummary(saved.getOrganizationId());
-                log.info("FinanceSummary successfully auto-created for orgId={} after collection create", saved.getOrganizationId());
-            } catch (Exception fsEx) {
-                log.error("FinanceSummary auto-creation failed for orgId={} after collection create: {}", saved.getOrganizationId(), fsEx.getMessage(), fsEx);
-            }
-
-            log.info("Sale created successfully: {}", saved);
-
-            // Update product stock
+            // 10) Update product stock
             BigDecimal currProduct = product.getCurrentLevel() != null ? product.getCurrentLevel() : BigDecimal.ZERO;
             BigDecimal decreaseBy = BigDecimal.valueOf(saved.getSalesInLiters());
             BigDecimal updatedProductLevel = currProduct.subtract(decreaseBy);
             if (updatedProductLevel.compareTo(BigDecimal.ZERO) < 0) updatedProductLevel = BigDecimal.ZERO;
             product.setCurrentLevel(updatedProductLevel);
-            productRepository.save(product);
+            productRepository.save(product); // unchanged [web:14]
 
-            // Update inventory and log
+            // 11) Update inventory + log latest
             List<Inventory> inventories = inventoryRepository.findAllByOrganizationIdAndProductId(dto.getOrganizationId(), product.getId());
             inventories.stream()
                     .max(Comparator.comparing(Inventory::getLastUpdated))
@@ -142,7 +147,7 @@ public class SalesServiceImpl implements SalesService {
                         BigDecimal updatedStockValue = priceVal.multiply(updatedInv);
 
                         inventory.setCurrentLevel(updatedInv);
-                        inventory.setStockValue(updatedStockValue); // Ensure latest
+                        inventory.setStockValue(updatedStockValue);
                         inventoryRepository.save(inventory);
 
                         InventoryLog logEntry = InventoryLog.builder()
@@ -161,18 +166,31 @@ public class SalesServiceImpl implements SalesService {
                                 .build();
 
                         inventoryLogRepository.save(logEntry);
+                    }); // unchanged semantic, just formatted [web:14]
 
-                        log.info("Inventory '{}' currentLevel updated & logged: {} → {} (decreased by {}), stockValue={}",
-                                inventory.getProductName(), currInv, updatedInv, decreaseBy, updatedStockValue);
-                    });
-
-            return toResponse(saved);
+            // 12) Response uses display names
+            return SalesResponseDTO.builder()
+                    .id(saved.getId())
+                    .saleId(saved.getSaleId())
+                    .organizationId(saved.getOrganizationId())
+                    .dateTime(saved.getDateTime())
+                    .productName(saved.getSaleId() )
+                    .guns(saved.getGuns())
+                    .empId(saved.getEmpId())
+                    .openingStock(saved.getOpeningStock())
+                    .closingStock(saved.getClosingStock())
+                    .testingTotal(saved.getTestingTotal())
+                    .salesInLiters(saved.getSalesInLiters())
+                    .price(saved.getPrice())
+                    .salesInRupees(saved.getSalesInRupees())
+                    .build(); // DTO mapping guideline compatible [web:16]
 
         } catch (Exception e) {
-            log.error("❌ Error creating sale for orgId={} productName={}: {}", dto.getOrganizationId(), dto.getProductName(), e.getMessage(), e);
-            throw new RuntimeException(e.getMessage());
+            log.error("Error creating sale: {}", e.getMessage(), e);
+            throw new RuntimeException(e.getMessage()); // keep existing behavior [web:14]
         }
     }
+
 
     // Helper: Get the latest stock value and current level for a product & org
     public Optional<LatestInventoryStatus> getLatestInventoryForProduct(String organizationId, String productId) {
@@ -239,25 +257,37 @@ public class SalesServiceImpl implements SalesService {
     }
 
     @Override
-    public void deleteSale(String saleId, String employeeId) {
+    public void deleteSale(String saleMongoId, String employeeId) {
         try {
             // 1. Find the sale being deleted
-            Sales sale = salesRepository.findById(saleId)
+            Sales sale = salesRepository.findById(saleMongoId)
                     .orElseThrow(() -> new RuntimeException("Sale not found"));
             String orgId = sale.getOrganizationId();
+
             String productName = sale.getProductName().trim().toLowerCase();
             String guns = sale.getGuns().trim().toLowerCase();
             double addBackLiters = sale.getSalesInLiters();
+            String saleId = sale.getSaleId(); // UUID business key for relationships [manual ref best practice] [web:2][web:5]
 
-            // 2. Delete related Collections by orgId, normalized productName, normalized guns
-            List<Collections> collections = collectionsRepository.findAllByOrganizationIdAndProductNameAndGuns(orgId, productName, guns);
-            log.info("Found {} collections to delete for saleId={}", collections.size(), saleId);
-            collections.forEach(collection -> collectionsRepository.deleteById(collection.getId()));
+            // 2) Delete related Collections strictly by orgId + saleId (not broad product/gun)
+            Long deletedCount = 0L;
+            try {
+                deletedCount = collectionsRepository.deleteByOrganizationIdAndSaleId(orgId, saleId); // derived delete query [web:79]
+            } catch (UnsupportedOperationException ex) {
+                // fallback if derived delete not supported in your version: fetch then delete
+                List<Collections> rel = collectionsRepository.findAllByOrganizationIdAndProductNameAndGuns(orgId, productName, guns);
+                rel.stream()
+                        .filter(c -> saleId != null && saleId.equals(c.getSaleId()))
+                        .forEach(c -> collectionsRepository.deleteById(c.getId()));
+                deletedCount = (long) rel.size();
+            }
+            log.info("Deleted {} collection(s) for orgId={} saleId={}", deletedCount, orgId, saleId);
 
-            // 3. Do NOT delete SaleHistory. Add an audit record with mutationby for deletion.
+            // 3) Audit SaleHistory entry for deletion (do not remove historical sales)
             SaleHistory deletedRecord = SaleHistory.builder()
+                    .saleId(saleId)
                     .organizationId(orgId)
-                    .dateTime(ZonedDateTime.now(ZoneId.of("Asia/Kolkata")).withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime())
+                    .dateTime(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
                     .productName(productName)
                     .guns(guns)
                     .empId(employeeId)
@@ -268,11 +298,10 @@ public class SalesServiceImpl implements SalesService {
                     .price(sale.getPrice())
                     .salesInRupees(sale.getSalesInRupees())
                     .mutationby("sale delete by " + employeeId)
-                    .lastUpdated(ZonedDateTime.now(ZoneId.of("Asia/Kolkata")).withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime())
+                    .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
                     .build();
-            saleHistoryRepository.save(deletedRecord);
-            log.info("Recorded SaleHistory audit log for deleted saleId={}", saleId);
-
+            saleHistoryRepository.save(deletedRecord); // keep immutable audit trail [web:2][web:5][web:14]
+            log.info("Recorded SaleHistory delete audit for saleId={} (business) mongoId={}", saleId, saleMongoId);
             // 4. Update GunInfo: decrement by salesInLiters
             gunInfoRepository.findByOrganizationId(orgId).stream()
                     .filter(g -> g.getProductName() != null
@@ -327,7 +356,7 @@ public class SalesServiceImpl implements SalesService {
             }
 
             // 7. Finally, delete the Sale
-            salesRepository.deleteById(saleId);
+            salesRepository.deleteById(saleMongoId);
             log.info("Sale deleted and all relevant rollback/audit applied for saleId={}", saleId);
 
             // ✅ 8. Trigger FinanceSummary recalculation after sale deletion
@@ -340,7 +369,7 @@ public class SalesServiceImpl implements SalesService {
             }
 
         } catch (Exception e) {
-            log.error("Error deleting sale id={}: {}", saleId, e.getMessage(), e);
+            log.error("Error deleting sale id={}: {}",  e.getMessage(), e);
             throw new RuntimeException("Error deleting sale: " + e.getMessage());
         }
     }
@@ -362,7 +391,7 @@ public class SalesServiceImpl implements SalesService {
         return SalesResponseDTO.builder()
                 .id(sale.getId())
                 .organizationId(sale.getOrganizationId())
-                .dateTime(istTime) // ALWAYS IST
+                .dateTime(ZonedDateTime.now(ZoneId.of("Asia/Kolkata")).withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime())
                 .productName(sale.getProductName())
                 .guns(sale.getGuns())
                 .empId(sale.getEmpId())

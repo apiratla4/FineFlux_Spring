@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface SalesRepository extends MongoRepository<Sales, String> {
 
@@ -51,7 +52,7 @@ public interface SalesRepository extends MongoRepository<Sales, String> {
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end
     );
-
+    Optional<Sales> findByOrganizationIdAndSaleMatchKey(String organizationId, String saleMatchKey);
     // Case-insensitive search to match any variants like "Petrol", "petrol", etc.
     List<Sales> findByOrganizationIdAndProductNameIgnoreCaseOrderByDateTime(
             String organizationId, String productName

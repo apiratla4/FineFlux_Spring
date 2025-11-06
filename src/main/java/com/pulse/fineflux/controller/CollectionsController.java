@@ -4,6 +4,7 @@ import com.pulse.fineflux.domain.*;
 import com.pulse.fineflux.service.CollectionsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -66,13 +67,18 @@ public class CollectionsController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable String id) {
+    public ResponseEntity<Void> delete(
+            @PathVariable String orgId,
+            @PathVariable String id) {
         try {
             collectionsService.delete(id);
-            return ResponseEntity.noContent().build();
+            return ResponseEntity.noContent().build(); // 204 [web:110][web:101]
+        } catch (RuntimeException ex) {
+            log.warn("Collection not found for delete id={} orgId={}: {}", id, orgId, ex.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build(); // 404 [web:110]
         } catch (Exception e) {
-            log.error("Error deleting collection id={}: {}", id, e.getMessage(), e);
-            return ResponseEntity.internalServerError().build();
+            log.error("Error deleting collection id={} orgId={}: {}", id, orgId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build(); // 500 [web:110]
         }
     }
 }
