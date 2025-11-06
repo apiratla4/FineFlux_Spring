@@ -91,6 +91,10 @@ public class InventoryServiceImpl implements InventoryService {
             product.setCurrentLevel(newCurrentLevel);
             productRepository.save(product);
 
+            LocalDateTime utcDeleteTime1 = LocalDateTime.now(ZoneId.of("Asia/Kolkata"))
+                    .atZone(ZoneId.of("Asia/Kolkata"))
+                    .withZoneSameInstant(ZoneId.of("UTC"))
+                    .toLocalDateTime();
             InventoryLog logEntry = InventoryLog.builder()
                     .inventoryId(savedInventory.getInventoryId())
                     .organizationId(savedInventory.getOrganizationId())
@@ -98,7 +102,7 @@ public class InventoryServiceImpl implements InventoryService {
                     .productName(savedInventory.getProductName())
                     .totalCapacity(savedInventory.getTotalCapacity())
                     .stockValue(savedInventory.getStockValue())
-                    .lastUpdated(savedInventory.getLastUpdated())
+                    .lastUpdated(utcDeleteTime1)
                     .empId(savedInventory.getEmpId())
                     .currentLevel(savedInventory.getCurrentLevel())
                     .metric(savedInventory.getMetric())
