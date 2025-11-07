@@ -274,14 +274,13 @@ public class SalesServiceImpl implements SalesService {
             String productName = sale.getProductName().trim().toLowerCase();
             String guns = sale.getGuns().trim().toLowerCase();
             double addBackLiters = sale.getSalesInLiters();
-            String saleId = sale.getSaleId(); // UUID business key for relationships [manual ref best practice] [web:2][web:5]
+            String saleId = sale.getSaleId();
 
-            // 2) Delete related Collections strictly by orgId + saleId (not broad product/gun)
+            // 2. Delete related Collections
             Long deletedCount = 0L;
             try {
-                deletedCount = collectionsRepository.deleteByOrganizationIdAndSaleId(orgId, saleId); // derived delete query [web:79]
+                deletedCount = collectionsRepository.deleteByOrganizationIdAndSaleId(orgId, saleId);
             } catch (UnsupportedOperationException ex) {
-                // fallback if derived delete not supported in your version: fetch then delete
                 List<Collections> rel = collectionsRepository.findAllByOrganizationIdAndProductNameAndGuns(orgId, productName, guns);
                 rel.stream()
                         .filter(c -> saleId != null && saleId.equals(c.getSaleId()))
@@ -290,23 +289,21 @@ public class SalesServiceImpl implements SalesService {
             }
             log.info("Deleted {} collection(s) for orgId={} saleId={}", deletedCount, orgId, saleId);
 
-            // 3) Audit SaleHistory entry for deletion (do not remove historical sales)
-            // Derive canonical UTC event time from IST "now" [web:22][web:215]
+            // 3. Audit SaleHistory entry for deletion
             LocalDateTime utcDeleteTime = LocalDateTime.now(ZoneId.of("Asia/Kolkata"))
                     .atZone(ZoneId.of("Asia/Kolkata"))
                     .withZoneSameInstant(ZoneId.of("UTC"))
-                    .toLocalDateTime(); // store UTC [web:22][web:215]
+                    .toLocalDateTime();
 
-// Upsert by unique key (orgId, saleId, "sale_delete") to ensure exactly one delete audit [web:135][web:134]
             Optional<SaleHistory> existingDel = saleHistoryRepository
-                    .findByOrganizationIdAndSaleIdAndMutationby(orgId, saleId, "sale_delete"); // repository method required [web:57][web:60]
+                    .findByOrganizationIdAndSaleIdAndMutationby(orgId, saleId, "sale_delete");
 
             SaleHistory deletedRecord = existingDel.orElseGet(SaleHistory::new);
-            existingDel.ifPresent(h -> deletedRecord.setId(h.getId())); // update if present [web:14]
+            existingDel.ifPresent(h -> deletedRecord.setId(h.getId()));
 
             deletedRecord.setSaleId(saleId);
             deletedRecord.setOrganizationId(orgId);
-            deletedRecord.setDateTime(utcDeleteTime); // UTC in DB [web:22][web:215]
+            deletedRecord.setDateTime(utcDeleteTime);
             deletedRecord.setProductName(productName);
             deletedRecord.setGuns(guns);
             deletedRecord.setEmpId(employeeId);
@@ -316,14 +313,12 @@ public class SalesServiceImpl implements SalesService {
             deletedRecord.setSalesInLiters(sale.getSalesInLiters());
             deletedRecord.setPrice(sale.getPrice());
             deletedRecord.setSalesInRupees(sale.getSalesInRupees());
-
-// Use a constant discriminator for unique index; capture actor separately if needed [web:135][web:134]
-            deletedRecord.setMutationby("sale_delete"); // constant key [web:135][web:134]
+            deletedRecord.setMutationby("sale_delete");
             deletedRecord.setLastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")));
             saleHistoryRepository.save(deletedRecord);
-            // keep immutable audit trail [web:2][web:5][web:14]
-            log.info("Recorded SaleHistory delete audit for saleId={} (business) mongoId={}", saleId, saleMongoId);
-            // 4. Update GunInfo: decrement by salesInLiters
+            log.info("Recorded SaleHistory delete audit for saleId={}, mongoId={}", saleId, saleMongoId);
+
+            // 4. Update GunInfo
             gunInfoRepository.findByOrganizationId(orgId).stream()
                     .filter(g -> g.getProductName() != null
                             && g.getProductName().trim().equalsIgnoreCase(productName)
@@ -348,8 +343,42 @@ public class SalesServiceImpl implements SalesService {
             product.setCurrentLevel(productLevel.add(BigDecimal.valueOf(addBackLiters)));
             productRepository.save(product);
 
-            // 6. Update all Inventory records for org+product
+            // 6. INSERT ONLY ONE inventory delete log for the product
             List<Inventory> inventories = inventoryRepository.findAllByOrganizationIdAndProductId(orgId, product.getId());
+            if (!inventories.isEmpty()) {
+                Inventory inv = inventories.get(0); // ONLY ONCE per product!
+                String mutationKey = "sale_delete";
+                Optional<InventoryLog> existingDelete = inventoryLogRepository.findByInventoryIdAndMutationby(inv.getInventoryId(), mutationKey);
+
+                if (existingDelete.isEmpty()) {
+                    InventoryLog deleteLog = InventoryLog.builder()
+                            .inventoryId(inv.getInventoryId())
+                            .organizationId(inv.getOrganizationId())
+                            .productId(inv.getProductId())
+                            .productName(inv.getProductName())
+                            .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
+                            .empId(employeeId)
+                            .currentLevel(inv.getCurrentLevel())
+                            .stockValue(inv.getStockValue())
+                            .metric(inv.getMetric())
+                            .status(inv.getStatus())
+                            .tankCapacity(inv.getTankCapacity())
+                            .mutationby(mutationKey)
+                            .build();
+                    inventoryLogRepository.save(deleteLog);
+                    log.info("Inserted inventory delete log for product={} inventoryId={}", productName, inv.getInventoryId());
+                } else {
+                    InventoryLog logToUpdate = existingDelete.get();
+                    logToUpdate.setLastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")));
+                    logToUpdate.setCurrentLevel(inv.getCurrentLevel());
+                    logToUpdate.setStockValue(inv.getStockValue());
+                    logToUpdate.setEmpId(employeeId);
+                    inventoryLogRepository.save(logToUpdate);
+                    log.info("Updated inventory delete log for product={} inventoryId={}", productName, inv.getInventoryId());
+                }
+            }
+
+            // Always update all other inventories (stock, etc) as required (unchanged)
             for (Inventory inv : inventories) {
                 BigDecimal invLevel = inv.getCurrentLevel() != null ? inv.getCurrentLevel() : BigDecimal.ZERO;
                 inv.setCurrentLevel(invLevel.add(BigDecimal.valueOf(addBackLiters)));
@@ -357,34 +386,13 @@ public class SalesServiceImpl implements SalesService {
                 BigDecimal price = product.getPrice() != null ? BigDecimal.valueOf(product.getPrice()) : BigDecimal.ZERO;
                 inv.setStockValue(price.multiply(inv.getCurrentLevel()));
                 inventoryRepository.save(inv);
-
-                LocalDateTime utcDeleteTimes = LocalDateTime.now(ZoneId.of("Asia/Kolkata"))
-                        .atZone(ZoneId.of("Asia/Kolkata"))
-                        .withZoneSameInstant(ZoneId.of("UTC"))
-                        .toLocalDateTime();
-                // Optionally, insert reversal log
-                InventoryLog log = InventoryLog.builder()
-                        .inventoryId(inv.getInventoryId())
-                        .organizationId(inv.getOrganizationId())
-                        .productId(inv.getProductId())
-                        .productName(inv.getProductName())
-                        .lastUpdated(utcDeleteTimes)
-                        .empId(employeeId)
-                        .currentLevel(inv.getCurrentLevel())
-                        .stockValue(inv.getStockValue())
-                        .metric(inv.getMetric())
-                        .status(inv.getStatus())
-                        .tankCapacity(inv.getTankCapacity())
-                        .mutationby(" Sale Entry Deleted By " + employeeId)
-                        .build();
-                inventoryLogRepository.save(log);
             }
 
             // 7. Finally, delete the Sale
             salesRepository.deleteById(saleMongoId);
             log.info("Sale deleted and all relevant rollback/audit applied for saleId={}", saleId);
 
-            // ✅ 8. Trigger FinanceSummary recalculation after sale deletion
+            // 8. Trigger FinanceSummary recalculation
             try {
                 log.info("Calling financeSummaryService.autoCreateFinanceSummary after sale deletion for orgId={}", orgId);
                 financeSummaryService.autoCreateFinanceSummary(orgId);
@@ -394,10 +402,11 @@ public class SalesServiceImpl implements SalesService {
             }
 
         } catch (Exception e) {
-            log.error("Error deleting sale id={}: {}",  e.getMessage(), e);
+            log.error("Error deleting sale id={}: {}", e.getMessage(), e);
             throw new RuntimeException("Error deleting sale " + e.getMessage());
         }
     }
+
 
     private SalesResponseDTO toResponse(Sales sale) {
         LocalDateTime utcStored = sale.getDateTime(); // stored in UTC

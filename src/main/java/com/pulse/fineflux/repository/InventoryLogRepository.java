@@ -24,5 +24,5 @@ public interface InventoryLogRepository extends MongoRepository<InventoryLog, St
 
     InventoryLog findTopByProductIdAndInventoryIdNotOrderByLastUpdatedDesc(String productId, String inventoryId);
 
-
+    Optional<InventoryLog> findByInventoryIdAndMutationby(String inventoryId, String mutationby);
 }
