@@ -263,6 +263,7 @@ public class SalesServiceImpl implements SalesService {
                 .collect(Collectors.toList());
     }
 
+
     @Override
     public void deleteSale(String saleMongoId, String employeeId) {
         try {
@@ -343,12 +344,34 @@ public class SalesServiceImpl implements SalesService {
             product.setCurrentLevel(productLevel.add(BigDecimal.valueOf(addBackLiters)));
             productRepository.save(product);
 
-            // 6. INSERT ONLY ONE inventory delete log for the product
+            // Get inventories for this product (used below)
             List<Inventory> inventories = inventoryRepository.findAllByOrganizationIdAndProductId(orgId, product.getId());
+
+            // Always update all other inventories (stock, etc) as required
+            for (Inventory inv : inventories) {
+                BigDecimal invLevel = inv.getCurrentLevel() != null ? inv.getCurrentLevel() : BigDecimal.ZERO;
+                inv.setCurrentLevel(invLevel.add(BigDecimal.valueOf(addBackLiters)));
+
+                BigDecimal price = product.getPrice() != null ? BigDecimal.valueOf(product.getPrice()) : BigDecimal.ZERO;
+                inv.setStockValue(price.multiply(inv.getCurrentLevel()));
+                inventoryRepository.save(inv);
+            }
+
+            // 6. INSERT/UPDATE a single inventory delete log for the product using the updated inventory values
             if (!inventories.isEmpty()) {
-                Inventory inv = inventories.get(0); // ONLY ONCE per product!
+                // pick the latest inventory (same logic used elsewhere when creating sale logs)
+                Inventory inv = inventories.stream()
+                        .max(Comparator.comparing(Inventory::getLastUpdated))
+                        .orElse(inventories.get(0));
+
                 String mutationKey = "sale_delete";
                 Optional<InventoryLog> existingDelete = inventoryLogRepository.findByInventoryIdAndMutationby(inv.getInventoryId(), mutationKey);
+
+                // use consistent UTC timestamp like other log entries
+                LocalDateTime utcDeleteTimeLog = LocalDateTime.now(ZoneId.of("Asia/Kolkata"))
+                        .atZone(ZoneId.of("Asia/Kolkata"))
+                        .withZoneSameInstant(ZoneId.of("UTC"))
+                        .toLocalDateTime();
 
                 if (existingDelete.isEmpty()) {
                     InventoryLog deleteLog = InventoryLog.builder()
@@ -356,10 +379,10 @@ public class SalesServiceImpl implements SalesService {
                             .organizationId(inv.getOrganizationId())
                             .productId(inv.getProductId())
                             .productName(inv.getProductName())
-                            .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
+                            .lastUpdated(utcDeleteTimeLog)
                             .empId(employeeId)
-                            .currentLevel(inv.getCurrentLevel())
-                            .stockValue(inv.getStockValue())
+                            .currentLevel(inv.getCurrentLevel())   // uses updated level (after addBack)
+                            .stockValue(inv.getStockValue())       // uses updated stockValue
                             .metric(inv.getMetric())
                             .status(inv.getStatus())
                             .tankCapacity(inv.getTankCapacity())
@@ -369,23 +392,13 @@ public class SalesServiceImpl implements SalesService {
                     log.info("Inserted inventory delete log for product={} inventoryId={}", productName, inv.getInventoryId());
                 } else {
                     InventoryLog logToUpdate = existingDelete.get();
-                    logToUpdate.setLastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")));
-                    logToUpdate.setCurrentLevel(inv.getCurrentLevel());
-                    logToUpdate.setStockValue(inv.getStockValue());
+                    logToUpdate.setLastUpdated(utcDeleteTimeLog);
+                    logToUpdate.setCurrentLevel(inv.getCurrentLevel()); // updated level
+                    logToUpdate.setStockValue(inv.getStockValue());     // updated stock value
                     logToUpdate.setEmpId(employeeId);
                     inventoryLogRepository.save(logToUpdate);
                     log.info("Updated inventory delete log for product={} inventoryId={}", productName, inv.getInventoryId());
                 }
-            }
-
-            // Always update all other inventories (stock, etc) as required (unchanged)
-            for (Inventory inv : inventories) {
-                BigDecimal invLevel = inv.getCurrentLevel() != null ? inv.getCurrentLevel() : BigDecimal.ZERO;
-                inv.setCurrentLevel(invLevel.add(BigDecimal.valueOf(addBackLiters)));
-
-                BigDecimal price = product.getPrice() != null ? BigDecimal.valueOf(product.getPrice()) : BigDecimal.ZERO;
-                inv.setStockValue(price.multiply(inv.getCurrentLevel()));
-                inventoryRepository.save(inv);
             }
 
             // 7. Finally, delete the Sale
@@ -406,6 +419,7 @@ public class SalesServiceImpl implements SalesService {
             throw new RuntimeException("Error deleting sale " + e.getMessage());
         }
     }
+
 
 
     private SalesResponseDTO toResponse(Sales sale) {
