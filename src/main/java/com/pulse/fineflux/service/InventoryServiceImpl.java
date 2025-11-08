@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
+import com.pulse.fineflux.utill.DateTimeUtil;
 import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.List;
@@ -70,8 +70,8 @@ public class InventoryServiceImpl implements InventoryService {
             BigDecimal price = product.getPrice() != null ? BigDecimal.valueOf(product.getPrice()) : BigDecimal.ZERO;
             BigDecimal stockValue = price.multiply(newCurrentLevel);
 
-            // ---- STORE IST WITH OFFSET (ZonedDateTime for correct serialization) ----
-            ZonedDateTime istNow = ZonedDateTime.now(ZoneId.of("Asia/Kolkata"));
+            // ---- STORE IST timestamp ----
+            LocalDateTime istNow = DateTimeUtil.nowLocal();
 
             Inventory inventory = Inventory.builder()
                     .organizationId(dto.getOrganizationId())
@@ -79,7 +79,7 @@ public class InventoryServiceImpl implements InventoryService {
                     .productName(product.getProductName())
                     .totalCapacity(totalCapacity)
                     .stockValue(stockValue)
-                    .lastUpdated(istNow.toLocalDateTime()) // store as ZonedDateTime!
+                    .lastUpdated(istNow)
                     .empId(dto.getEmpId())
                     .currentLevel(newCurrentLevel)
                     .metric(dto.getMetric())
@@ -91,10 +91,7 @@ public class InventoryServiceImpl implements InventoryService {
             product.setCurrentLevel(newCurrentLevel);
             productRepository.save(product);
 
-            LocalDateTime utcDeleteTime1 = LocalDateTime.now(ZoneId.of("Asia/Kolkata"))
-                    .atZone(ZoneId.of("Asia/Kolkata"))
-                    .withZoneSameInstant(ZoneId.of("UTC"))
-                    .toLocalDateTime();
+            LocalDateTime istLog = DateTimeUtil.nowLocal();
             InventoryLog logEntry = InventoryLog.builder()
                     .inventoryId(savedInventory.getInventoryId())
                     .organizationId(savedInventory.getOrganizationId())
@@ -102,7 +99,7 @@ public class InventoryServiceImpl implements InventoryService {
                     .productName(savedInventory.getProductName())
                     .totalCapacity(savedInventory.getTotalCapacity())
                     .stockValue(savedInventory.getStockValue())
-                    .lastUpdated(utcDeleteTime1)
+                    .lastUpdated(istLog)
                     .empId(savedInventory.getEmpId())
                     .currentLevel(savedInventory.getCurrentLevel())
                     .metric(savedInventory.getMetric())
@@ -144,7 +141,7 @@ public class InventoryServiceImpl implements InventoryService {
             BigDecimal price = product.getPrice() != null ? BigDecimal.valueOf(product.getPrice()) : BigDecimal.ZERO;
             BigDecimal computedStockValue = price.multiply(newTotal);
 
-            LocalDateTime istTime = LocalDateTime.now(ZoneId.of("Asia/Kolkata"));
+            LocalDateTime istTime = DateTimeUtil.nowLocal();
             // Persist latest inventory snapshot
             Inventory inventory = Inventory.builder()
                     .organizationId(orgId)
@@ -260,7 +257,7 @@ public class InventoryServiceImpl implements InventoryService {
                     .productName(inv.getProductName())
                     .totalCapacity(inv.getTotalCapacity())
                     .stockValue(previousStockValue)
-                    .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
+                    .lastUpdated(DateTimeUtil.nowLocal())
                     .empId(employeeId)
                     .currentLevel(previousLevel) // The "restored" value
                     .metric(inv.getMetric())

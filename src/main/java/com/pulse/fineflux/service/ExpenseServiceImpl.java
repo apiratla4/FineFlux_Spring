@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import com.pulse.fineflux.utill.DateTimeUtil;
 import java.util.List;
 
 @Slf4j
@@ -32,7 +33,7 @@ public class ExpenseServiceImpl implements ExpenseService {
                     .amount(dto.getAmount())
                     .categoryName(dto.getCategoryName())
                     .expenseDate(dto.getExpenseDate())
-                    .createdAt(LocalDateTime.now())
+                    .createdAt(DateTimeUtil.nowLocal())
                     .organizationId(dto.getOrganizationId())
                     .empId(dto.getEmpId())
                     .employeeName(dto.getEmployeeName())

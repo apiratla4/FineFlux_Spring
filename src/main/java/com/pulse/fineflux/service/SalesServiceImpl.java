@@ -7,6 +7,7 @@ import com.pulse.fineflux.domain.SalesUpdateDTO;
 import com.pulse.fineflux.entity.*;
 import com.pulse.fineflux.repository.*;
 import com.pulse.fineflux.utill.SaleMatch;
+import com.pulse.fineflux.utill.DateTimeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -38,22 +39,20 @@ public class SalesServiceImpl implements SalesService {
     // Helper: convert client LocalDateTime (in system default zone) to IST LocalDateTime truncated to seconds
     private LocalDateTime toIst(LocalDateTime clientTs) {
         ZoneId sourceZone = ZoneId.systemDefault();
-        ZonedDateTime clientZdt = clientTs.atZone(sourceZone);
-        ZonedDateTime istZdt = clientZdt.withZoneSameInstant(ZoneId.of("Asia/Kolkata")).truncatedTo(ChronoUnit.SECONDS);
-        return istZdt.toLocalDateTime();
+        return DateTimeUtil.toIst(clientTs, sourceZone).truncatedTo(ChronoUnit.SECONDS);
     }
 
     // Helper: current IST truncated to seconds
     private LocalDateTime nowIst() {
-        return LocalDateTime.now(ZoneId.of("Asia/Kolkata")).truncatedTo(ChronoUnit.SECONDS);
+        return DateTimeUtil.nowLocal();
     }
 
     @Override
     public SalesResponseDTO createSale(SalesCreateDTO dto) {
         try {
-            ZoneId sourceZone = ZoneId.systemDefault();
-            LocalDateTime clientTs = dto.getDateTime() != null ? dto.getDateTime() : LocalDateTime.now(sourceZone);
-            LocalDateTime istSecond = toIst(clientTs);
+            // If client provided a timestamp, convert it from system default zone to IST;
+            // otherwise use current IST
+            LocalDateTime istSecond = dto.getDateTime() != null ? toIst(dto.getDateTime()) : nowIst();
 
             Product product = productRepository.findByOrganizationId(dto.getOrganizationId())
                     .stream()
@@ -61,14 +60,7 @@ public class SalesServiceImpl implements SalesService {
                     .findFirst()
                     .orElseThrow(() -> new RuntimeException("Product not found: " + dto.getProductName()));
 
-            String gunName = gunInfoRepository.findByOrganizationId(dto.getOrganizationId())
-                    .stream()
-                    .filter(g -> g.getProductName() != null
-                            && g.getProductName().trim().equalsIgnoreCase(dto.getProductName().trim())
-                            && g.getGuns().trim().equalsIgnoreCase(dto.getGuns().trim()))
-                    .findFirst()
-                    .map(GunInfo::getGuns)
-                    .orElseThrow(() -> new RuntimeException("Gun not found for product: " + dto.getProductName() + " and gun: " + dto.getGuns()));
+            // find the matching GunInfo when needed below (we update via stream later), no separate gunName variable required
 
             double opening = gunInfoRepository.findByOrganizationId(dto.getOrganizationId())
                     .stream()
@@ -387,7 +379,7 @@ public class SalesServiceImpl implements SalesService {
             }
 
         } catch (Exception e) {
-            log.error("Error deleting sale id={}: {}", e.getMessage(), e);
+            log.error("Error deleting sale id={}: {}", saleMongoId, e.getMessage(), e);
             throw new RuntimeException("Error deleting sale " + e.getMessage());
         }
     }

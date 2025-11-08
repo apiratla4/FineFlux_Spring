@@ -15,7 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
+import com.pulse.fineflux.utill.DateTimeUtil;
 import java.util.List;
 
 @Service
@@ -91,7 +91,7 @@ public class ProductServiceImpl implements ProductService {
                     .supplier(dto.getSupplier())
                     .currentLevel(dto.getCurrentLevel() != null ? dto.getCurrentLevel() : BigDecimal.ZERO)
                     .metric(dto.getMetric())
-                    .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
+                    .lastUpdated(DateTimeUtil.nowLocal())
                     .empId(dto.getEmpId())
                     .build();
 
@@ -105,7 +105,7 @@ public class ProductServiceImpl implements ProductService {
                     .productName(savedProduct.getProductName())
                     .totalCapacity(savedProduct.getTankCapacity())
                     .stockValue(savedProduct.getPrice() != null ? BigDecimal.valueOf(savedProduct.getPrice()) : BigDecimal.ZERO)
-                    .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")))
+                    .lastUpdated(DateTimeUtil.nowLocal())
                     .currentLevel(savedProduct.getCurrentLevel())
                     .metric(savedProduct.getMetric())
                     .status(savedProduct.getStatus())
@@ -172,7 +172,7 @@ public class ProductServiceImpl implements ProductService {
             product.setSupplier(dto.getSupplier());
             product.setCurrentLevel(dto.getCurrentLevel());
             product.setMetric(dto.getMetric());
-            product.setLastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")));
+            product.setLastUpdated(DateTimeUtil.nowLocal());
             Product updatedProduct = productRepository.save(product);
             log.debug("Product updated successfully productId={} orgId={}", updatedProduct.getId(), orgId);
 
@@ -196,7 +196,7 @@ public class ProductServiceImpl implements ProductService {
                     latestLog.setCurrentLevel(updatedProduct.getCurrentLevel());
                     latestLog.setStockValue(newStockValue);
                     latestLog.setStatus(updatedProduct.getStatus());
-                    latestLog.setLastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")));
+                    latestLog.setLastUpdated(DateTimeUtil.nowLocal());
                     inventoryLogRepository.save(latestLog);
                     log.debug("Latest InventoryLog updated for inventoryId={} with new currentLevel={} and new stockValue={}",
                             inv.getInventoryId(), updatedProduct.getCurrentLevel(), newStockValue);
@@ -224,7 +224,7 @@ public class ProductServiceImpl implements ProductService {
                     });
 
             product.setStatus(status);
-            product.setLastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")));
+            product.setLastUpdated(DateTimeUtil.nowLocal());
             Product updatedProduct = productRepository.save(product);
             log.debug("Product status updated successfully productId={} orgId={} status={}", updatedProduct.getId(), orgId, status);
 

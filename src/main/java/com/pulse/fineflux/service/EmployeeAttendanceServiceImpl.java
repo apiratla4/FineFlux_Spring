@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.*;
 import java.time.format.DateTimeFormatter;
+import com.pulse.fineflux.utill.DateTimeUtil;
 import java.util.List;
 import java.util.Optional;
 
@@ -74,8 +75,8 @@ public class EmployeeAttendanceServiceImpl implements EmployeeAttendanceService 
         ea.setBreakIn(toIST(dto.getBreakIn()));
         ea.setBreakOut(toIST(dto.getBreakOut()));
         ea.setDescription(dto.getDescription());
-        ea.setCreatedAt(LocalDateTime.now(IST_ZONE));
-        ea.setUpdatedAt(LocalDateTime.now(IST_ZONE));
+        ea.setCreatedAt(DateTimeUtil.nowLocal());
+        ea.setUpdatedAt(DateTimeUtil.nowLocal());
 
         boolean present = ea.getCheckIn() != null && ea.getCheckOut() != null;
         ea.setPresent(present ? "YES" : "NO");
@@ -166,7 +167,7 @@ public class EmployeeAttendanceServiceImpl implements EmployeeAttendanceService 
         if (dto.getBreakOut() != null) ea.setBreakOut(toIST(dto.getBreakOut()));
         if (dto.getDescription() != null) ea.setDescription(dto.getDescription());
 
-        ea.setUpdatedAt(LocalDateTime.now(IST_ZONE));
+        ea.setUpdatedAt(DateTimeUtil.nowLocal());
 
         EmployeeAttendance saved = repository.save(ea);
         return mapToResponseDTO(saved);

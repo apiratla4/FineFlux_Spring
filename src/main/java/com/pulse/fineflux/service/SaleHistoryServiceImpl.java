@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import com.pulse.fineflux.utill.DateTimeUtil;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -41,21 +42,15 @@ public class SaleHistoryServiceImpl implements SaleHistoryService {
 
 
     private SaleHistoryResponseDTO toResponse(SaleHistory h) {
-        // Assume h.getDateTime() is stored in UTC (recommended) and convert once to IST for UI [web:22][web:215]
-        LocalDateTime utcStored = h.getDateTime(); // UTC in DB [web:215]
-        ZonedDateTime istZdt = null;
-        if (utcStored != null) {
-            istZdt = utcStored
-                    .atZone(ZoneId.of("UTC"))
-                    .withZoneSameInstant(ZoneId.of("Asia/Kolkata")); // preserve instant, render in IST [web:22]
-        }
+        // Stored dateTime is IST local time. Render as IST and ISO with +05:30
+        LocalDateTime istStored = h.getDateTime();
+        ZonedDateTime istZdt = istStored != null ? istStored.atZone(DateTimeUtil.IST) : null;
 
-        // Build response: dateTime=IST LocalDateTime (for UI grids), dateTimeString=ISO string with +05:30 [web:22]
         return SaleHistoryResponseDTO.builder()
                 .id(h.getId())
                 .organizationId(h.getOrganizationId())
-                .dateTime(istZdt != null ? istZdt.toLocalDateTime() : null) // IST local date-time for UI [web:22]
-                .dateTimeString(istZdt != null ? istZdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) : null) // ISO with +05:30 [web:221]
+                .dateTime(istStored) // IST local date-time for UI
+                .dateTimeString(istZdt != null ? istZdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) : null) // ISO with +05:30
                 .productName(h.getProductName())
                 .guns(h.getGuns())
                 .empId(h.getEmpId())
