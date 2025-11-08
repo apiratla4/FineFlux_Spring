@@ -238,12 +238,32 @@ public class InventoryServiceImpl implements InventoryService {
                             "Product not found for inventory delete (possible data corruption or orphan inventory)"
                     ));
 
-            // 3. Find previous InventoryLog for this product, excluding the soon-to-be-deleted inventoryId
-            InventoryLog prevLog = inventoryLogRepository.findTopByProductIdAndInventoryIdNotOrderByLastUpdatedDesc(
-                    productId, inventoryId
-            );
-            BigDecimal previousLevel = (prevLog != null) ? prevLog.getCurrentLevel() : BigDecimal.ZERO;
-            BigDecimal previousStockValue = (prevLog != null) ? prevLog.getStockValue() : BigDecimal.ZERO;
+            // 3. Find previous InventoryLog for this product that existed BEFORE this inventory's lastUpdated
+            InventoryLog prevLogBefore = null;
+            try {
+                prevLogBefore = inventoryLogRepository
+                        .findTopByProductIdAndLastUpdatedLessThanOrderByLastUpdatedDesc(productId, inv.getLastUpdated())
+                        .orElse(null);
+            } catch (Exception ex) {
+                log.debug("Repository does not support time-based lookup or query failed: {}", ex.getMessage());
+            }
+
+            // Fallback: previous log excluding this inventory id (existing behavior)
+            InventoryLog prevLogFallback = inventoryLogRepository.findTopByProductIdAndInventoryIdNotOrderByLastUpdatedDesc(productId, inventoryId);
+
+            BigDecimal previousLevel;
+            BigDecimal previousStockValue;
+            if (prevLogBefore != null) {
+                previousLevel = prevLogBefore.getCurrentLevel() != null ? prevLogBefore.getCurrentLevel() : BigDecimal.ZERO;
+                previousStockValue = prevLogBefore.getStockValue() != null ? prevLogBefore.getStockValue() : BigDecimal.ZERO;
+            } else if (prevLogFallback != null) {
+                previousLevel = prevLogFallback.getCurrentLevel() != null ? prevLogFallback.getCurrentLevel() : BigDecimal.ZERO;
+                previousStockValue = prevLogFallback.getStockValue() != null ? prevLogFallback.getStockValue() : BigDecimal.ZERO;
+            } else {
+                previousLevel = BigDecimal.ZERO;
+                previousStockValue = BigDecimal.ZERO;
+            }
+
             // 4. Restore product currentLevel to previous most recent value
             product.setCurrentLevel(previousLevel);
 
@@ -271,6 +291,33 @@ public class InventoryServiceImpl implements InventoryService {
             // 6. Now delete the inventory record
             inventoryRepository.deleteById(inventoryId);
             log.debug("Inventory deleted successfully inventoryId={}", inventoryId);
+
+            // 7. Adjust the latest remaining inventory (if any) so inventory table matches restored product level
+            Inventory remaining = inventoryRepository.findTopByOrganizationIdAndProductIdOrderByLastUpdatedDesc(orgId, productId);
+            if (remaining != null) {
+                BigDecimal priceVal = product.getPrice() != null ? BigDecimal.valueOf(product.getPrice()) : BigDecimal.ZERO;
+                remaining.setCurrentLevel(previousLevel);
+                remaining.setStockValue(priceVal.multiply(previousLevel));
+                inventoryRepository.save(remaining);
+
+                InventoryLog adjustLog = InventoryLog.builder()
+                        .inventoryId(remaining.getInventoryId())
+                        .organizationId(remaining.getOrganizationId())
+                        .productId(remaining.getProductId())
+                        .productName(remaining.getProductName())
+                        .totalCapacity(remaining.getTotalCapacity())
+                        .stockValue(remaining.getStockValue())
+                        .lastUpdated(DateTimeUtil.nowLocal())
+                        .empId(employeeId)
+                        .currentLevel(remaining.getCurrentLevel())
+                        .metric(remaining.getMetric())
+                        .status(remaining.getStatus())
+                        .tankCapacity(remaining.getTankCapacity())
+                        .mutationby("inventory deleted - adjusted remaining by " + employeeId)
+                        .build();
+                inventoryLogRepository.insert(adjustLog);
+                log.debug("Adjusted remaining inventory {} to level {}", remaining.getInventoryId(), remaining.getCurrentLevel());
+            }
 
         } catch (Exception e) {
             log.error("Error deleting inventory inventoryId={} orgId={}", inventoryId, orgId, e);

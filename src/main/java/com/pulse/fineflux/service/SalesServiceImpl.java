@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
@@ -166,6 +165,14 @@ public class SalesServiceImpl implements SalesService {
                                 .build();
 
                         inventoryLogRepository.save(logEntry);
+
+                        // Save which inventory this sale consumed so we can rollback correctly later
+                        try {
+                            saved.setInventoryId(inventory.getInventoryId());
+                            salesRepository.save(saved);
+                        } catch (Exception ex) {
+                            log.warn("Failed to save inventoryId on sale {}: {}", saved != null ? saved.getId() : "<null>", ex.getMessage());
+                        }
                     });
 
             return SalesResponseDTO.builder()
@@ -324,45 +331,51 @@ public class SalesServiceImpl implements SalesService {
             product.setCurrentLevel(productLevel.add(BigDecimal.valueOf(addBackLiters)));
             productRepository.save(product);
 
-            // Update all inventories for this product and recalc stockValue
+            // Restore only the inventory that was affected by this sale (if known), otherwise use latest
             List<Inventory> inventories = inventoryRepository.findAllByOrganizationIdAndProductId(orgId, product.getId());
-            for (Inventory inv : inventories) {
-                BigDecimal invLevel = inv.getCurrentLevel() != null ? inv.getCurrentLevel() : BigDecimal.ZERO;
-                BigDecimal updatedInvLevel = invLevel.add(BigDecimal.valueOf(addBackLiters));
-                inv.setCurrentLevel(updatedInvLevel);
-
-                BigDecimal price = product.getPrice() != null ? BigDecimal.valueOf(product.getPrice()) : BigDecimal.ZERO;
-                inv.setStockValue(price.multiply(inv.getCurrentLevel()));
-                inventoryRepository.save(inv);
+            Inventory targetInv = null;
+            if (sale.getInventoryId() != null) {
+                targetInv = inventoryRepository.findById(sale.getInventoryId()).orElse(null);
+            }
+            if (targetInv == null && !inventories.isEmpty()) {
+                targetInv = inventories.stream().max(Comparator.comparing(Inventory::getLastUpdated)).orElse(inventories.get(0));
             }
 
-            // Create a NEW InventoryLog entry for the latest inventory after rollback (store IST)
-            if (!inventories.isEmpty()) {
-                Inventory inv = inventories.stream()
-                        .max(Comparator.comparing(Inventory::getLastUpdated))
-                        .orElse(inventories.get(0));
+            if (targetInv != null) {
+                BigDecimal invLevel = targetInv.getCurrentLevel() != null ? targetInv.getCurrentLevel() : BigDecimal.ZERO;
+                BigDecimal updatedInvLevel = invLevel.add(BigDecimal.valueOf(addBackLiters));
+                targetInv.setCurrentLevel(updatedInvLevel);
 
+                BigDecimal price = product.getPrice() != null ? BigDecimal.valueOf(product.getPrice()) : BigDecimal.ZERO;
+                targetInv.setStockValue(price.multiply(targetInv.getCurrentLevel()));
+                inventoryRepository.save(targetInv);
+
+                // Create a NEW InventoryLog entry for the target inventory after rollback (store IST)
                 LocalDateTime istDeleteTimeLog = nowIst();
 
                 InventoryLog deleteLog = InventoryLog.builder()
                         .id(null) // ensure new document
-                        .inventoryId(inv.getInventoryId())
-                        .organizationId(inv.getOrganizationId())
-                        .productId(inv.getProductId())
-                        .productName(inv.getProductName())
+                        .inventoryId(targetInv.getInventoryId())
+                        .organizationId(targetInv.getOrganizationId())
+                        .productId(targetInv.getProductId())
+                        .productName(targetInv.getProductName())
                         .lastUpdated(istDeleteTimeLog) // store IST
                         .empId(employeeId)
-                        .currentLevel(inv.getCurrentLevel())   // updated level (after addBack)
-                        .stockValue(inv.getStockValue())       // updated stockValue
-                        .metric(inv.getMetric())
-                        .status(inv.getStatus())
-                        .tankCapacity(inv.getTankCapacity())
+                        .currentLevel(targetInv.getCurrentLevel())   // updated level (after addBack)
+                        .stockValue(targetInv.getStockValue())       // updated stockValue
+                        .metric(targetInv.getMetric())
+                        .status(targetInv.getStatus())
+                        .tankCapacity(targetInv.getTankCapacity())
                         .mutationby("sale_delete")
                         .build();
 
-                // insert as new doc to keep every delete as a separate log entry
                 inventoryLogRepository.insert(deleteLog);
-                log.info("Inserted inventory delete log for product={} inventoryId={}", productName, inv.getInventoryId());
+                log.info("Inserted inventory delete log for product={} inventoryId={}", productName, targetInv.getInventoryId());
+
+                // Previously we reconciled ALL remaining inventories here which created multiple logs and
+                // caused incorrect 'sale_delete - reconciled' entries in the DB. Remove that behaviour.
+
+                // End of target inventory rollback handling
             }
 
             // Finally delete the sale
