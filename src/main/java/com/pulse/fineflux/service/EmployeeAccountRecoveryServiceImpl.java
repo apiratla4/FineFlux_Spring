@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import com.pulse.fineflux.utill.DateTimeUtil;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -42,7 +43,7 @@ public class EmployeeAccountRecoveryServiceImpl implements EmployeeAccountRecove
                     .token(token)
                     .orgId(orgId)
                     .employeeId(emp.getId())
-                    .expiryDate(Instant.now().plusSeconds(3600)) // valid for 1 hour
+                    .expiryDate(DateTimeUtil.nowInstant().plusSeconds(3600)) // valid for 1 hour (based on IST instant)
                     .build();
             tokenRepo.save(resetToken);
 
@@ -69,7 +70,7 @@ public class EmployeeAccountRecoveryServiceImpl implements EmployeeAccountRecove
                     log.warn("No password reset token found for token={} orgId={}", token, orgId);
                     return new RuntimeException("Invalid or expired token");
                 });
-        if (resetToken.getExpiryDate().isBefore(Instant.now())) {
+        if (resetToken.getExpiryDate().isBefore(DateTimeUtil.nowInstant())) {
             log.warn("Token expired for token={} orgId={}", token, orgId);
             tokenRepo.delete(resetToken);
             throw new RuntimeException("Token expired");

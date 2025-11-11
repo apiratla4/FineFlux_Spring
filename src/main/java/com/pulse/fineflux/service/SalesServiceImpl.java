@@ -7,6 +7,7 @@ import com.pulse.fineflux.domain.SalesUpdateDTO;
 import com.pulse.fineflux.entity.*;
 import com.pulse.fineflux.repository.*;
 import com.pulse.fineflux.utill.SaleMatch;
+import com.pulse.fineflux.utill.DateTimeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -14,7 +15,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -34,15 +35,23 @@ public class SalesServiceImpl implements SalesService {
     private final SaleHistoryRepository saleHistoryRepository;
     private final CollectionsRepository collectionsRepository;
 
+    // Helper: convert client LocalDateTime (in system default zone) to IST LocalDateTime truncated to seconds
+    private LocalDateTime toIst(LocalDateTime clientTs) {
+        ZoneId sourceZone = ZoneId.systemDefault();
+        return DateTimeUtil.toIst(clientTs, sourceZone).truncatedTo(ChronoUnit.SECONDS);
+    }
+
+    // Helper: current IST truncated to seconds
+    private LocalDateTime nowIst() {
+        return DateTimeUtil.nowLocal();
+    }
+
     @Override
     public SalesResponseDTO createSale(SalesCreateDTO dto) {
         try {
-            ZoneId sourceZone = ZoneId.systemDefault();
-            LocalDateTime clientTs = dto.getDateTime() != null ? dto.getDateTime() : LocalDateTime.now(sourceZone);
-            ZonedDateTime clientZdt = clientTs.atZone(sourceZone);
-            ZonedDateTime istZdt = clientZdt.withZoneSameInstant(ZoneId.of("Asia/Kolkata")).truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
-            ZonedDateTime utcZdt = istZdt.withZoneSameInstant(ZoneId.of("UTC"));
-            LocalDateTime utcSecond = utcZdt.toLocalDateTime();
+            // If client provided a timestamp, convert it from system default zone to IST;
+            // otherwise use current IST
+            LocalDateTime istSecond = dto.getDateTime() != null ? toIst(dto.getDateTime()) : nowIst();
 
             Product product = productRepository.findByOrganizationId(dto.getOrganizationId())
                     .stream()
@@ -50,14 +59,7 @@ public class SalesServiceImpl implements SalesService {
                     .findFirst()
                     .orElseThrow(() -> new RuntimeException("Product not found: " + dto.getProductName()));
 
-            String gunName = gunInfoRepository.findByOrganizationId(dto.getOrganizationId())
-                    .stream()
-                    .filter(g -> g.getProductName() != null
-                            && g.getProductName().trim().equalsIgnoreCase(dto.getProductName().trim())
-                            && g.getGuns().trim().equalsIgnoreCase(dto.getGuns().trim()))
-                    .findFirst()
-                    .map(GunInfo::getGuns)
-                    .orElseThrow(() -> new RuntimeException("Gun not found for product: " + dto.getProductName() + " and gun: " + dto.getGuns()));
+            // find the matching GunInfo when needed below (we update via stream later), no separate gunName variable required
 
             double opening = gunInfoRepository.findByOrganizationId(dto.getOrganizationId())
                     .stream()
@@ -88,12 +90,12 @@ public class SalesServiceImpl implements SalesService {
             String gunsNorm = SaleMatch.normalize(gunsDisplay);
 
             String saleId = java.util.UUID.randomUUID().toString();
-            String saleMatchKey = SaleMatch.buildKey(utcSecond, productNorm, gunsNorm, dto.getPrice());
+            String saleMatchKey = SaleMatch.buildKey(istSecond, productNorm, gunsNorm, dto.getPrice());
 
             Sales sale = Sales.builder()
                     .saleId(saleId)
                     .organizationId(dto.getOrganizationId())
-                    .dateTime(utcSecond)
+                    .dateTime(istSecond) // store IST
                     .productName(productNorm)
                     .guns(gunsNorm)
                     .price(dto.getPrice())
@@ -144,10 +146,7 @@ public class SalesServiceImpl implements SalesService {
                         inventory.setStockValue(updatedStockValue);
                         inventoryRepository.save(inventory);
 
-                        LocalDateTime utcLogTime = LocalDateTime.now(ZoneId.of("Asia/Kolkata"))
-                                .atZone(ZoneId.of("Asia/Kolkata"))
-                                .withZoneSameInstant(ZoneId.of("UTC"))
-                                .toLocalDateTime();
+                        LocalDateTime istLogTime = nowIst();
 
                         InventoryLog logEntry = InventoryLog.builder()
                                 .inventoryId(inventory.getInventoryId())
@@ -156,7 +155,7 @@ public class SalesServiceImpl implements SalesService {
                                 .productName(inventory.getProductName())
                                 .totalCapacity(inventory.getTotalCapacity())
                                 .stockValue(updatedStockValue)
-                                .lastUpdated(utcLogTime)
+                                .lastUpdated(istLogTime) // store IST
                                 .empId(dto.getEmpId())
                                 .currentLevel(updatedInv)
                                 .metric(inventory.getMetric())
@@ -166,14 +165,22 @@ public class SalesServiceImpl implements SalesService {
                                 .build();
 
                         inventoryLogRepository.save(logEntry);
+
+                        // Save which inventory this sale consumed so we can rollback correctly later
+                        try {
+                            saved.setInventoryId(inventory.getInventoryId());
+                            salesRepository.save(saved);
+                        } catch (Exception ex) {
+                            log.warn("Failed to save inventoryId on sale {}: {}", saved != null ? saved.getId() : "<null>", ex.getMessage());
+                        }
                     });
 
             return SalesResponseDTO.builder()
                     .id(saved.getId())
                     .saleId(saved.getSaleId())
                     .organizationId(saved.getOrganizationId())
-                    .dateTime(saved.getDateTime())
-                    .productName(saved.getSaleId())
+                    .dateTime(saved.getDateTime()) // stored IST, return as-is
+                    .productName(saved.getProductName())
                     .guns(saved.getGuns())
                     .empId(saved.getEmpId())
                     .openingStock(saved.getOpeningStock())
@@ -276,17 +283,14 @@ public class SalesServiceImpl implements SalesService {
             }
             log.info("Deleted {} collection(s) for orgId={} saleId={}", deletedCount, orgId, saleId);
 
-            // Always create a NEW SaleHistory audit entry for this delete
-            LocalDateTime utcDeleteTime = LocalDateTime.now(ZoneId.of("Asia/Kolkata"))
-                    .atZone(ZoneId.of("Asia/Kolkata"))
-                    .withZoneSameInstant(ZoneId.of("UTC"))
-                    .toLocalDateTime();
+            // Always create a NEW SaleHistory audit entry for this delete and store IST
+            LocalDateTime istDeleteTime = nowIst();
 
             SaleHistory deletedRecord = new SaleHistory();
             deletedRecord.setId(null); // ensure insertion as a new doc
             deletedRecord.setSaleId(saleId);
             deletedRecord.setOrganizationId(orgId);
-            deletedRecord.setDateTime(utcDeleteTime);
+            deletedRecord.setDateTime(istDeleteTime); // store IST
             deletedRecord.setProductName(productName);
             deletedRecord.setGuns(guns);
             deletedRecord.setEmpId(employeeId);
@@ -297,7 +301,7 @@ public class SalesServiceImpl implements SalesService {
             deletedRecord.setPrice(sale.getPrice());
             deletedRecord.setSalesInRupees(sale.getSalesInRupees());
             deletedRecord.setMutationby("sale_delete");
-            deletedRecord.setLastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")));
+            deletedRecord.setLastUpdated(nowIst()); // store IST
             // use insert to force new doc creation
             saleHistoryRepository.insert(deletedRecord);
             log.info("Inserted SaleHistory delete audit for saleId={}, mongoId={}", saleId, saleMongoId);
@@ -327,48 +331,51 @@ public class SalesServiceImpl implements SalesService {
             product.setCurrentLevel(productLevel.add(BigDecimal.valueOf(addBackLiters)));
             productRepository.save(product);
 
-            // Update all inventories for this product and recalc stockValue
+            // Restore only the inventory that was affected by this sale (if known), otherwise use latest
             List<Inventory> inventories = inventoryRepository.findAllByOrganizationIdAndProductId(orgId, product.getId());
-            for (Inventory inv : inventories) {
-                BigDecimal invLevel = inv.getCurrentLevel() != null ? inv.getCurrentLevel() : BigDecimal.ZERO;
-                BigDecimal updatedInvLevel = invLevel.add(BigDecimal.valueOf(addBackLiters));
-                inv.setCurrentLevel(updatedInvLevel);
-
-                BigDecimal price = product.getPrice() != null ? BigDecimal.valueOf(product.getPrice()) : BigDecimal.ZERO;
-                inv.setStockValue(price.multiply(inv.getCurrentLevel()));
-                inventoryRepository.save(inv);
+            Inventory targetInv = null;
+            if (sale.getInventoryId() != null) {
+                targetInv = inventoryRepository.findById(sale.getInventoryId()).orElse(null);
+            }
+            if (targetInv == null && !inventories.isEmpty()) {
+                targetInv = inventories.stream().max(Comparator.comparing(Inventory::getLastUpdated)).orElse(inventories.get(0));
             }
 
-            // Create a NEW InventoryLog entry for the latest inventory after rollback
-            if (!inventories.isEmpty()) {
-                Inventory inv = inventories.stream()
-                        .max(Comparator.comparing(Inventory::getLastUpdated))
-                        .orElse(inventories.get(0));
+            if (targetInv != null) {
+                BigDecimal invLevel = targetInv.getCurrentLevel() != null ? targetInv.getCurrentLevel() : BigDecimal.ZERO;
+                BigDecimal updatedInvLevel = invLevel.add(BigDecimal.valueOf(addBackLiters));
+                targetInv.setCurrentLevel(updatedInvLevel);
 
-                LocalDateTime utcDeleteTimeLog = LocalDateTime.now(ZoneId.of("Asia/Kolkata"))
-                        .atZone(ZoneId.of("Asia/Kolkata"))
-                        .withZoneSameInstant(ZoneId.of("UTC"))
-                        .toLocalDateTime();
+                BigDecimal price = product.getPrice() != null ? BigDecimal.valueOf(product.getPrice()) : BigDecimal.ZERO;
+                targetInv.setStockValue(price.multiply(targetInv.getCurrentLevel()));
+                inventoryRepository.save(targetInv);
+
+                // Create a NEW InventoryLog entry for the target inventory after rollback (store IST)
+                LocalDateTime istDeleteTimeLog = nowIst();
 
                 InventoryLog deleteLog = InventoryLog.builder()
                         .id(null) // ensure new document
-                        .inventoryId(inv.getInventoryId())
-                        .organizationId(inv.getOrganizationId())
-                        .productId(inv.getProductId())
-                        .productName(inv.getProductName())
-                        .lastUpdated(utcDeleteTimeLog)
+                        .inventoryId(targetInv.getInventoryId())
+                        .organizationId(targetInv.getOrganizationId())
+                        .productId(targetInv.getProductId())
+                        .productName(targetInv.getProductName())
+                        .lastUpdated(istDeleteTimeLog) // store IST
                         .empId(employeeId)
-                        .currentLevel(inv.getCurrentLevel())   // updated level (after addBack)
-                        .stockValue(inv.getStockValue())       // updated stockValue
-                        .metric(inv.getMetric())
-                        .status(inv.getStatus())
-                        .tankCapacity(inv.getTankCapacity())
+                        .currentLevel(targetInv.getCurrentLevel())   // updated level (after addBack)
+                        .stockValue(targetInv.getStockValue())       // updated stockValue
+                        .metric(targetInv.getMetric())
+                        .status(targetInv.getStatus())
+                        .tankCapacity(targetInv.getTankCapacity())
                         .mutationby("sale_delete")
                         .build();
 
-                // insert as new doc to keep every delete as a separate log entry
                 inventoryLogRepository.insert(deleteLog);
-                log.info("Inserted inventory delete log for product={} inventoryId={}", productName, inv.getInventoryId());
+                log.info("Inserted inventory delete log for product={} inventoryId={}", productName, targetInv.getInventoryId());
+
+                // Previously we reconciled ALL remaining inventories here which created multiple logs and
+                // caused incorrect 'sale_delete - reconciled' entries in the DB. Remove that behaviour.
+
+                // End of target inventory rollback handling
             }
 
             // Finally delete the sale
@@ -385,26 +392,20 @@ public class SalesServiceImpl implements SalesService {
             }
 
         } catch (Exception e) {
-            log.error("Error deleting sale id={}: {}", e.getMessage(), e);
+            log.error("Error deleting sale id={}: {}", saleMongoId, e.getMessage(), e);
             throw new RuntimeException("Error deleting sale " + e.getMessage());
         }
     }
 
     private SalesResponseDTO toResponse(Sales sale) {
-        LocalDateTime utcStored = sale.getDateTime();
-        LocalDateTime istForUi = null;
-        if (utcStored != null) {
-            istForUi = utcStored
-                    .atZone(ZoneId.of("UTC"))
-                    .withZoneSameInstant(ZoneId.of("Asia/Kolkata"))
-                    .toLocalDateTime();
-        }
+        // Stored timestamps are now in IST. Return as-is for UI.
+        LocalDateTime istStored = sale.getDateTime();
 
         return SalesResponseDTO.builder()
                 .id(sale.getId())
                 .saleId(sale.getSaleId())
                 .organizationId(sale.getOrganizationId())
-                .dateTime(istForUi)
+                .dateTime(istStored)
                 .productName(sale.getProductName())
                 .guns(sale.getGuns())
                 .empId(sale.getEmpId())

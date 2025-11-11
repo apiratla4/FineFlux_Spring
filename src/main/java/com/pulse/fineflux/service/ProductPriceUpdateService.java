@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import com.pulse.fineflux.utill.DateTimeUtil;
 import java.util.List;
 import java.util.Objects;
 
@@ -32,7 +33,7 @@ public class ProductPriceUpdateService {
                     .orElseThrow(() -> new RuntimeException("Product not found: " + productId));
 
             product.setPrice(newPrice);
-            product.setLastUpdated(LocalDateTime.now());
+            product.setLastUpdated(DateTimeUtil.nowLocal());
 
             // NEW: compute product-level stockValue = product.currentLevel * newPrice
             BigDecimal prodCurrentLevel = defaultZero(product.getCurrentLevel());
@@ -54,7 +55,7 @@ public class ProductPriceUpdateService {
                 BigDecimal invStockValue = invCurrentLevel.multiply(BigDecimal.valueOf(newPrice));
 
                 inventory.setStockValue(invStockValue);
-                inventory.setLastUpdated(LocalDateTime.now());
+                inventory.setLastUpdated(DateTimeUtil.nowLocal());
                 inventoryRepo.save(inventory);
 
                 // 3) Log the change
@@ -69,7 +70,7 @@ public class ProductPriceUpdateService {
                         .metric(inventory.getMetric())
                         .tankCapacity(inventory.getTankCapacity())
                         .status(inventory.getStatus())
-                        .lastUpdated(LocalDateTime.now())
+                        .lastUpdated(DateTimeUtil.nowLocal())
                         .empId(empId)
                         .build();
                 logRepo.save(invLog);

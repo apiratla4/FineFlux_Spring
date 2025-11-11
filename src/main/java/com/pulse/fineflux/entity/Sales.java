@@ -1,6 +1,5 @@
 package com.pulse.fineflux.entity;
 
-import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -33,5 +32,7 @@ public class Sales {
 
     // Derived key at second resolution for robust match
     private String saleMatchKey;
+    // Inventory document that this sale consumed (helps to rollback to the correct inventory)
+    private String inventoryId;
 
 }

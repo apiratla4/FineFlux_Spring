@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.Date;
+import com.pulse.fineflux.utill.DateTimeUtil;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -39,8 +40,8 @@ public class EmployeeDutyServiceImpl implements EmployeeDutyService {
         BeanUtils.copyProperties(createDTO, duty);
 
         duty.setStatus(createDTO.getStatus() != null ? createDTO.getStatus() : "SCHEDULED");
-        duty.setCreatedAt(new Date());
-        duty.setUpdatedAt(new Date());
+        duty.setCreatedAt(DateTimeUtil.nowDate());
+        duty.setUpdatedAt(DateTimeUtil.nowDate());
         duty.calculateTotalHours();
 
         EmployeeDuty savedDuty = dutyRepository.save(duty);
@@ -71,7 +72,7 @@ public class EmployeeDutyServiceImpl implements EmployeeDutyService {
             duty.setStatus(updateDTO.getStatus());
         }
 
-        duty.setUpdatedAt(new Date());
+        duty.setUpdatedAt(DateTimeUtil.nowDate());
         duty.calculateTotalHours();
 
         EmployeeDuty updatedDuty = dutyRepository.save(duty);

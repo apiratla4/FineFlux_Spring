@@ -50,7 +50,7 @@ public class CustomerHistoryServiceImpl implements CustomerHistoryService {
             h.setCustomerId(cust.getId());
             h.setCustId(cust.getCustId());
             h.setTransactionAmount(req.transactionAmount);
-            h.setTransactionDate(req.transactionDate != null ? req.transactionDate : Instant.now());
+            h.setTransactionDate(req.transactionDate != null ? req.transactionDate : com.pulse.fineflux.utill.DateTimeUtil.nowInstant());
             h.setNotes(req.notes);
 
             BigDecimal currentDebt = cust.getAmountBorrowed() != null ? cust.getAmountBorrowed() : BigDecimal.ZERO;
@@ -132,9 +132,9 @@ public class CustomerHistoryServiceImpl implements CustomerHistoryService {
     @Override
     public Page<CustomerHistoryResponse> listByOrgToday(String organizationId, Pageable pageable) {
         try {
-            LocalDate today = LocalDate.now();
-            Instant start = today.atStartOfDay(ZoneId.systemDefault()).toInstant();
-            Instant end = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+            LocalDate today = LocalDate.now(com.pulse.fineflux.utill.DateTimeUtil.IST);
+            Instant start = today.atStartOfDay(com.pulse.fineflux.utill.DateTimeUtil.IST).toInstant();
+            Instant end = today.plusDays(1).atStartOfDay(com.pulse.fineflux.utill.DateTimeUtil.IST).toInstant();
             return historyRepo.findByOrganizationIdAndTransactionDateBetweenOrderByTransactionDateDesc(
                     organizationId, start, end, pageable
             ).map(this::toResponse);
@@ -147,10 +147,10 @@ public class CustomerHistoryServiceImpl implements CustomerHistoryService {
     @Override
     public Page<CustomerHistoryResponse> listByOrgLastWeek(String organizationId, Pageable pageable) {
         try {
-            LocalDate today = LocalDate.now();
+            LocalDate today = LocalDate.now(com.pulse.fineflux.utill.DateTimeUtil.IST);
             LocalDate weekAgo = today.minusDays(7);
-            Instant start = weekAgo.atStartOfDay(ZoneId.systemDefault()).toInstant();
-            Instant end = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+            Instant start = weekAgo.atStartOfDay(com.pulse.fineflux.utill.DateTimeUtil.IST).toInstant();
+            Instant end = today.plusDays(1).atStartOfDay(com.pulse.fineflux.utill.DateTimeUtil.IST).toInstant();
             return historyRepo.findByOrganizationIdAndTransactionDateBetweenOrderByTransactionDateDesc(
                     organizationId, start, end, pageable
             ).map(this::toResponse);
@@ -163,10 +163,10 @@ public class CustomerHistoryServiceImpl implements CustomerHistoryService {
     @Override
     public Page<CustomerHistoryResponse> listByOrgMonth(String organizationId, Pageable pageable) {
         try {
-            LocalDate today = LocalDate.now();
+            LocalDate today = LocalDate.now(com.pulse.fineflux.utill.DateTimeUtil.IST);
             LocalDate firstOfMonth = today.withDayOfMonth(1);
-            Instant start = firstOfMonth.atStartOfDay(ZoneId.systemDefault()).toInstant();
-            Instant end = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+            Instant start = firstOfMonth.atStartOfDay(com.pulse.fineflux.utill.DateTimeUtil.IST).toInstant();
+            Instant end = today.plusDays(1).atStartOfDay(com.pulse.fineflux.utill.DateTimeUtil.IST).toInstant();
             return historyRepo.findByOrganizationIdAndTransactionDateBetweenOrderByTransactionDateDesc(
                     organizationId, start, end, pageable
             ).map(this::toResponse);

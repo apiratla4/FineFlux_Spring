@@ -18,6 +18,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -74,9 +75,10 @@ public class FinanceSummaryServiceImpl implements FinanceSummaryService {
 
         boolean isNew = summary.getId() == null;
 
-        double salesRevenue = fmt(salesRepo
-                .findByOrganizationIdAndDateTimeBetween(orgId, istStart, istEnd)
-                .stream().mapToDouble(Sales::getSalesInRupees).sum());
+        // Fetch all sales for the org and filter by IST local date to ensure deletes/rollbacks are reflected
+        double salesRevenue = fmt(salesRepo.findByOrganizationId(orgId).stream()
+                .filter(s -> s.getDateTime() != null && s.getDateTime().toLocalDate().equals(today))
+                .mapToDouble(Sales::getSalesInRupees).sum());
 
         double petrolInventory = fmt(getInventoryValue(orgId, "Petrol"));
         double dieselInventory = fmt(getInventoryValue(orgId, "Diesel"));
@@ -84,8 +86,10 @@ public class FinanceSummaryServiceImpl implements FinanceSummaryService {
         double cngInventory = fmt(getInventoryValue(orgId, "CNG"));
         double twoTInventory = fmt(getInventoryValue(orgId, "2T"));
 
-        List<Collections> collections = collectionsRepository
-                .findByOrganizationIdAndDateTimeBetween(orgId, istStart, istEnd);
+        // Fetch all collections for the org and filter by IST local date
+        List<Collections> collections = collectionsRepository.findByOrganizationId(orgId).stream()
+                .filter(c -> c.getDateTime() != null && c.getDateTime().toLocalDate().equals(today))
+                .collect(Collectors.toList());
 
         double cashReceived = fmt(collections.stream().mapToDouble(Collections::getCashReceived).sum());
         double phonePay     = fmt(collections.stream().mapToDouble(Collections::getPhonePay).sum());

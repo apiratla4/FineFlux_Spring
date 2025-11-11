@@ -8,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -20,7 +19,7 @@ public class InventoryLogServiceImpl implements InventoryLogService {
 
     private final InventoryLogRepository inventoryLogRepository;
 
-    private static final ZoneId IST_ZONE = ZoneId.of("Asia/Kolkata");
+    // Use centralized IST zone from DateTimeUtil
 
     @Override
     public List<InventoryLogResponseDTO> getAllLogs(String orgId) {
@@ -62,10 +61,8 @@ public class InventoryLogServiceImpl implements InventoryLogService {
     // Internal mapping helper: Always map lastUpdated to IST for DTO
     private InventoryLogResponseDTO toDto(InventoryLog log) {
         LocalDateTime lastUpdated = log.getLastUpdated();
-        LocalDateTime istTime = lastUpdated == null ? null
-                : lastUpdated.atZone(ZoneId.systemDefault())
-                .withZoneSameInstant(IST_ZONE)
-                .toLocalDateTime();
+        // Stored timestamps are now in IST. If any legacy record was stored with a zone, attempt conversion else assume IST.
+        LocalDateTime istTime = lastUpdated == null ? null : lastUpdated;
         return InventoryLogResponseDTO.builder()
                 .id(log.getId())
                 .inventoryId(log.getInventoryId())

@@ -8,6 +8,7 @@ import com.pulse.fineflux.repository.CollectionsRepository;
 import com.pulse.fineflux.repository.SalesRepository;
 import com.pulse.fineflux.repository.SaleHistoryRepository;
 import com.pulse.fineflux.utill.SaleMatch;
+import com.pulse.fineflux.utill.DateTimeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -117,10 +118,8 @@ public class CollectionsServiceImpl implements CollectionsService {
         // 9) Write SaleHistory only if a sale was matched
         if (matchingSale != null) {
             // 1) Derive canonical UTC time from your IST second (istSecond is IST-local) [web:22][web:215]
-            LocalDateTime utcEventTime = istSecond
-                    .atZone(ZoneId.of("Asia/Kolkata"))
-                    .withZoneSameInstant(ZoneId.of("UTC"))
-                    .toLocalDateTime(); // store UTC in DB for consistency [web:22][web:215]
+            // Store dateTime in DB as IST local date-time
+            LocalDateTime istEventTime = istSecond; // already IST-local
 
             // 2) Upsert the "create" snapshot to avoid duplicates (one per sale) [web:135][web:134]
             Optional<SaleHistory> existing = saleHistoryRepository
@@ -131,7 +130,7 @@ public class CollectionsServiceImpl implements CollectionsService {
 
             history.setSaleId(matchingSale.getSaleId());
             history.setOrganizationId(matchingSale.getOrganizationId());
-            history.setDateTime(utcEventTime); // store UTC canonical timestamp [web:22][web:215]
+            history.setDateTime(istEventTime); // store IST local timestamp
             history.setProductName(productNorm);
             history.setGuns(gunsNorm);
             history.setEmpId(matchingSale.getEmpId());
@@ -149,7 +148,7 @@ public class CollectionsServiceImpl implements CollectionsService {
             history.setShortCollections(saved.getShortCollections());
             history.setReceivedTotal(saved.getReceivedTotal());
             history.setMutationby("create"); // stable discriminator for unique index [web:135][web:134]
-            history.setLastUpdated(LocalDateTime.now(ZoneId.of("Asia/Kolkata")));
+            history.setLastUpdated(DateTimeUtil.nowLocal());
 
             saleHistoryRepository.save(history); // upsert-like via pre-lookup + save [web:14]
             log.info("SaleHistory upserted (create snapshot) saleId={} orgId={}", matchingSale.getSaleId(), matchingSale.getOrganizationId());
