@@ -27,8 +27,6 @@ public interface SalesRepository extends MongoRepository<Sales, String> {
             LocalDateTime to
     );
 
-
-
     /**
      * Find sales by organization, employee, and date range
      */
@@ -58,5 +56,5 @@ public interface SalesRepository extends MongoRepository<Sales, String> {
             String organizationId, String productName
     );
 
-
+    List<Sales> findAllByDateTimeBetweenAndOrganizationId(LocalDateTime start, LocalDateTime end, String organizationId);
 }

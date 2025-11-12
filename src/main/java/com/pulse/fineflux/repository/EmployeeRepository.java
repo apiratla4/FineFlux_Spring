@@ -23,4 +23,4 @@ public interface EmployeeRepository extends MongoRepository<Employee, String> {
     Optional<Employee> findByOrganizationIdAndUsername(String orgId, String emailOrUsername);
     Optional<Employee> findByOrganizationIdAndEmailId(String orgId, String emailOrUsername);
     List<Employee> findByOrganizationId(String organizationId);
-}
+    List<Employee> findAllByJoinedDateBetweenAndOrganizationId(java.time.Instant start, java.time.Instant end, String organizationId);}

@@ -19,7 +19,6 @@ public interface FinanceSummaryRepository extends MongoRepository<FinanceSummary
     List<FinanceSummary> findByOrganizationIdAndCreatedAtBetweenOrderByCreatedAtDesc(
             String organizationId, LocalDateTime from, LocalDateTime to
     );
-
-
+    List<FinanceSummary> findAllByCreatedAtBetweenAndOrganizationId(LocalDateTime start, LocalDateTime end, String organizationId);
 
 }

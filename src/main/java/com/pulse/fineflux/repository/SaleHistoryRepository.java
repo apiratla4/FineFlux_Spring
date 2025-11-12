@@ -24,5 +24,8 @@ public interface SaleHistoryRepository extends MongoRepository<SaleHistory, Stri
     Optional<SaleHistory> findByOrganizationIdAndSaleIdAndMutationby(String organizationId,
                                                                      String saleId,
                                                                      String mutationby);
+    // In SaleHistoryRepository interface
+    List<SaleHistory> findAllByOrganizationIdAndSaleId(String organizationId, String saleId);
+
 }
 

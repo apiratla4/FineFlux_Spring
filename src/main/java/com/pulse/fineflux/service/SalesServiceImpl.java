@@ -258,7 +258,6 @@ public class SalesServiceImpl implements SalesService {
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
-
     @Override
     public void deleteSale(String saleMongoId, String employeeId) {
         try {
@@ -396,7 +395,6 @@ public class SalesServiceImpl implements SalesService {
             throw new RuntimeException("Error deleting sale " + e.getMessage());
         }
     }
-
     private SalesResponseDTO toResponse(Sales sale) {
         // Stored timestamps are now in IST. Return as-is for UI.
         LocalDateTime istStored = sale.getDateTime();

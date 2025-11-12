@@ -2,6 +2,8 @@ package com.pulse.fineflux.repository;
 
 import com.pulse.fineflux.entity.Inventory;
 import org.springframework.data.mongodb.repository.MongoRepository;
+
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -15,5 +17,5 @@ public interface InventoryRepository extends MongoRepository<Inventory, String> 
     List<Inventory> findByProductId(String productId);
 
 
-
+    List<Inventory> findAllByLastUpdatedBetweenAndOrganizationId(LocalDateTime start, LocalDateTime end, String organizationId);
 }

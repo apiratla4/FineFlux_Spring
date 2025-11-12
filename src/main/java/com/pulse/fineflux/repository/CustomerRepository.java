@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -20,5 +21,5 @@ public interface CustomerRepository extends MongoRepository<Customer, String> {
 
     long deleteByOrganizationId(String organizationId);
     List<Customer> findAllByOrganizationIdAndBorrowDateBetween(String orgId, LocalDateTime from, LocalDateTime to);
-
+    List<Customer> findAllByBorrowDateBetweenAndOrganizationId(LocalDate start, LocalDate end, String organizationId);
 }
