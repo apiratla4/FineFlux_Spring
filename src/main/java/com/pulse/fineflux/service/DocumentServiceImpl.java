@@ -1,6 +1,9 @@
-// src/main/java/com/pulse/fineflux/service/impl/DocumentServiceImpl.java
 package com.pulse.fineflux.service;
 
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.BlobInfo;
+import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.Storage.SignUrlOption;
 import com.pulse.fineflux.domain.DocumentCreateRequest;
 import com.pulse.fineflux.domain.DocumentResponse;
 import com.pulse.fineflux.domain.DocumentUpdateRequest;
@@ -8,17 +11,31 @@ import com.pulse.fineflux.entity.DocumentRecord;
 import com.pulse.fineflux.repository.DocumentRepository;
 import com.pulse.fineflux.service.DocumentService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.net.URL;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
 public class DocumentServiceImpl implements DocumentService {
 
     private final DocumentRepository repo;
+
+    @Autowired
+    @Qualifier("serviceAccountStorage")
+    private Storage storage;
+
+    @Value("${gcs.bucket.name}")
+    private String bucketName;
 
     public DocumentServiceImpl(DocumentRepository repo) {
         this.repo = repo;
@@ -40,6 +57,49 @@ public class DocumentServiceImpl implements DocumentService {
         d = repo.save(d);
         log.info("Created document id={} orgId={}", d.getId(), organizationId);
         return toResponse(d);
+    }
+
+    public String uploadFileToGcs(String organizationId, MultipartFile file) throws Exception {
+        log.info("Uploading to GCS: orgId={}, fileName={}", organizationId, file.getOriginalFilename());
+        String folder = organizationId;
+        String blobName = folder + "/" + System.currentTimeMillis() + "_" + file.getOriginalFilename();
+
+        BlobInfo blobInfo = BlobInfo.newBuilder(bucketName, blobName)
+                .setContentType(file.getContentType())
+                .build();
+        storage.create(blobInfo, file.getBytes());
+        String fileUrl = "https://storage.googleapis.com/" + bucketName + "/" + blobName;
+        log.info("Upload finished, url={}", fileUrl);
+        return fileUrl;
+    }
+
+    /**
+     * Generates a signed temporary download URL for a file stored on GCS.
+     * Example usage: get via documentId, extract blob path from fileUrl.
+     *
+     * @param documentId The database id of the document
+     * @param durationSeconds Validity period in seconds for the download url
+     * @return signed URL for download
+     */
+    public String generateDownloadUrl(String documentId, int durationSeconds) {
+        DocumentRecord doc = repo.findById(documentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
+        String fileUrl = doc.getFileUrl();
+        // Extract the GCS object key after the bucket name
+        String gcsObjectPath = extractBlobNameFromUrl(fileUrl);
+
+        BlobInfo blobInfo = BlobInfo.newBuilder(bucketName, gcsObjectPath).build();
+        URL signedUrl = storage.signUrl(blobInfo, durationSeconds, TimeUnit.SECONDS, SignUrlOption.withV4Signature());
+        log.info("Generated signed download URL for documentId={} url={}", documentId, signedUrl);
+        return signedUrl.toString();
+    }
+
+    private String extractBlobNameFromUrl(String fileUrl) {
+        String prefix = "https://storage.googleapis.com/" + bucketName + "/";
+        if (fileUrl != null && fileUrl.startsWith(prefix)) {
+            return fileUrl.substring(prefix.length());
+        }
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid GCS URL format: " + fileUrl);
     }
 
     @Override
@@ -96,6 +156,7 @@ public class DocumentServiceImpl implements DocumentService {
     private DocumentResponse toResponse(DocumentRecord e) {
         DocumentResponse r = new DocumentResponse();
         r.id = e.getId();
+        r.organizationId = e.getOrganizationId();
         r.documentType = e.getDocumentType();
         r.issuingAuthority = e.getIssuingAuthority();
         r.issuedDate = e.getIssuedDate();
