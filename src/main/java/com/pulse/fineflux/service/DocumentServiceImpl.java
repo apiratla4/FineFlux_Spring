@@ -1,6 +1,5 @@
 package com.pulse.fineflux.service;
 
-import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.SignUrlOption;
@@ -9,7 +8,6 @@ import com.pulse.fineflux.domain.DocumentResponse;
 import com.pulse.fineflux.domain.DocumentUpdateRequest;
 import com.pulse.fineflux.entity.DocumentRecord;
 import com.pulse.fineflux.repository.DocumentRepository;
-import com.pulse.fineflux.service.DocumentService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -59,15 +58,35 @@ public class DocumentServiceImpl implements DocumentService {
         return toResponse(d);
     }
 
+    /**
+     * Uploads the file into GCS under a folder named after the organizationId.
+     * Also sets Content-Disposition metadata so downloads suggest the original filename.
+     *
+     * @param organizationId organization id (used as prefix/folder in object name)
+     * @param file           multipart file
+     * @return a public-ish file URL (https://storage.googleapis.com/{bucket}/{blobName})
+     * @throws Exception on any storage/upload error
+     */
     public String uploadFileToGcs(String organizationId, MultipartFile file) throws Exception {
-        log.info("Uploading to GCS: orgId={}, fileName={}", organizationId, file.getOriginalFilename());
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename == null || originalFilename.trim().isEmpty()) {
+            originalFilename = "file";
+        }
+        // sanitize a little for safety (replace newlines / excessive spaces)
+        String safeName = originalFilename.replaceAll("[\\r\\n]+", "_").trim().replaceAll("\\s+", "_");
+
+        log.info("Uploading to GCS: orgId={}, fileName={}", organizationId, safeName);
         String folder = organizationId;
-        String blobName = folder + "/" + System.currentTimeMillis() + "_" + file.getOriginalFilename();
+        String blobName = folder + "/" + System.currentTimeMillis() + "_" + safeName;
 
         BlobInfo blobInfo = BlobInfo.newBuilder(bucketName, blobName)
-                .setContentType(file.getContentType())
+                .setContentType(file.getContentType() == null ? "application/octet-stream" : file.getContentType())
+                .setContentDisposition("attachment; filename=\"" + safeName + "\"")
+                .setCacheControl("private, max-age=0, no-transform")
                 .build();
+
         storage.create(blobInfo, file.getBytes());
+
         String fileUrl = "https://storage.googleapis.com/" + bucketName + "/" + blobName;
         log.info("Upload finished, url={}", fileUrl);
         return fileUrl;
@@ -77,17 +96,18 @@ public class DocumentServiceImpl implements DocumentService {
      * Generates a signed temporary download URL for a file stored on GCS.
      * Example usage: get via documentId, extract blob path from fileUrl.
      *
-     * @param documentId The database id of the document
+     * @param documentId      The database id of the document
      * @param durationSeconds Validity period in seconds for the download url
      * @return signed URL for download
      */
     public String generateDownloadUrl(String documentId, int durationSeconds) {
         DocumentRecord doc = repo.findById(documentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
+
         String fileUrl = doc.getFileUrl();
-        // Extract the GCS object key after the bucket name
         String gcsObjectPath = extractBlobNameFromUrl(fileUrl);
 
+        // Build a minimal BlobInfo for signing. Metadata like contentDisposition is stored with the blob
         BlobInfo blobInfo = BlobInfo.newBuilder(bucketName, gcsObjectPath).build();
         URL signedUrl = storage.signUrl(blobInfo, durationSeconds, TimeUnit.SECONDS, SignUrlOption.withV4Signature());
         log.info("Generated signed download URL for documentId={} url={}", documentId, signedUrl);
