@@ -12,28 +12,23 @@ import org.springframework.stereotype.Service;
 
 import java.time.*;
 import java.time.format.DateTimeFormatter;
-import com.pulse.fineflux.utill.DateTimeUtil;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class EmployeeAttendanceServiceImpl implements EmployeeAttendanceService {
-    private static final ZoneId IST_ZONE = ZoneId.of("Asia/Kolkata");
     private static final DateTimeFormatter ISO_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm");
 
     private final EmployeeAttendanceRepository repository;
     private final EmployeeDutyRepository dutyRepository;
+    private final DateTimeService dateTimeService;
 
     @Autowired
     public EmployeeAttendanceServiceImpl(EmployeeAttendanceRepository repository,
-                                         EmployeeDutyRepository dutyRepository) {
+                                         EmployeeDutyRepository dutyRepository,
+                                         DateTimeService dateTimeService) {
         this.repository = repository;
         this.dutyRepository = dutyRepository;
-    }
-
-    private LocalDateTime toIST(LocalDateTime input) {
-        if (input == null) return null;
-        return input.atZone(ZoneId.systemDefault()).withZoneSameInstant(IST_ZONE).toLocalDateTime();
+        this.dateTimeService = dateTimeService;
     }
 
     private String minutesToHourMinFormat(Long minutes) {
@@ -70,13 +65,13 @@ public class EmployeeAttendanceServiceImpl implements EmployeeAttendanceService 
         ea.setOrganizationId(dto.getOrganizationId());
         ea.setEmpId(dto.getEmpId());
         ea.setUsername(dto.getUsername());
-        ea.setCheckIn(toIST(dto.getCheckIn()));
-        ea.setCheckOut(toIST(dto.getCheckOut()));
-        ea.setBreakIn(toIST(dto.getBreakIn()));
-        ea.setBreakOut(toIST(dto.getBreakOut()));
+        ea.setCheckIn(dto.getCheckIn());
+        ea.setCheckOut(dto.getCheckOut());
+        ea.setBreakIn(dto.getBreakIn());
+        ea.setBreakOut(dto.getBreakOut());
         ea.setDescription(dto.getDescription());
-        ea.setCreatedAt(DateTimeUtil.nowLocal());
-        ea.setUpdatedAt(DateTimeUtil.nowLocal());
+        ea.setCreatedAt(dateTimeService.nowLocal());
+        ea.setUpdatedAt(dateTimeService.nowLocal());
 
         boolean present = ea.getCheckIn() != null && ea.getCheckOut() != null;
         ea.setPresent(present ? "YES" : "NO");
@@ -117,8 +112,6 @@ public class EmployeeAttendanceServiceImpl implements EmployeeAttendanceService 
         }
         ea.setShortTimeMins(shortTime);
         ea.setExtraHoursMins(extraHours);
-        ea.setDescription(dto.getDescription()
-        );
 
         // MONTHLY METRICS (attendanceRate and avgHours)
         double attendanceRate = 0.0;
@@ -156,18 +149,19 @@ public class EmployeeAttendanceServiceImpl implements EmployeeAttendanceService 
         EmployeeAttendance saved = repository.save(ea);
         return mapToResponseDTO(saved);
     }
+
     @Override
     public EmployeeAttendanceResponseDTO update(String id, EmployeeAttendanceUpdateDTO dto) {
         EmployeeAttendance ea = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Attendance not found"));
 
-        if (dto.getCheckIn() != null) ea.setCheckIn(toIST(dto.getCheckIn()));
-        if (dto.getCheckOut() != null) ea.setCheckOut(toIST(dto.getCheckOut()));
-        if (dto.getBreakIn() != null) ea.setBreakIn(toIST(dto.getBreakIn()));
-        if (dto.getBreakOut() != null) ea.setBreakOut(toIST(dto.getBreakOut()));
+        if (dto.getCheckIn() != null) ea.setCheckIn(dto.getCheckIn());
+        if (dto.getCheckOut() != null) ea.setCheckOut(dto.getCheckOut());
+        if (dto.getBreakIn() != null) ea.setBreakIn(dto.getBreakIn());
+        if (dto.getBreakOut() != null) ea.setBreakOut(dto.getBreakOut());
         if (dto.getDescription() != null) ea.setDescription(dto.getDescription());
 
-        ea.setUpdatedAt(DateTimeUtil.nowLocal());
+        ea.setUpdatedAt(dateTimeService.nowLocal());
 
         EmployeeAttendance saved = repository.save(ea);
         return mapToResponseDTO(saved);
@@ -197,7 +191,7 @@ public class EmployeeAttendanceServiceImpl implements EmployeeAttendanceService 
 
     @Override
     public List<EmployeeAttendanceResponseDTO> getByEmpIdOneDay(String empId, LocalDateTime day) {
-        LocalDateTime s = toIST(day.withHour(0).withMinute(0).withSecond(0).withNano(0));
+        LocalDateTime s = day.withHour(0).withMinute(0).withSecond(0).withNano(0);
         LocalDateTime e = s.plusDays(1);
         return repository.findByEmpIdAndCheckInBetween(empId, s, e)
                 .stream().map(this::mapToResponseDTO).toList();
@@ -205,8 +199,8 @@ public class EmployeeAttendanceServiceImpl implements EmployeeAttendanceService 
 
     @Override
     public List<EmployeeAttendanceResponseDTO> getByEmpIdOneWeek(String empId, LocalDateTime reference) {
-        LocalDateTime s = toIST(reference.withHour(0).withMinute(0).withSecond(0).withNano(0)
-                .minusDays(reference.getDayOfWeek().getValue() - 1));
+        LocalDateTime s = reference.withHour(0).withMinute(0).withSecond(0).withNano(0)
+                .minusDays(reference.getDayOfWeek().getValue() - 1);
         LocalDateTime e = s.plusWeeks(1);
         return repository.findByEmpIdAndCheckInBetween(empId, s, e)
                 .stream().map(this::mapToResponseDTO).toList();
@@ -214,7 +208,7 @@ public class EmployeeAttendanceServiceImpl implements EmployeeAttendanceService 
 
     @Override
     public List<EmployeeAttendanceResponseDTO> getByEmpIdOneMonth(String empId, LocalDateTime reference) {
-        LocalDateTime s = toIST(reference.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0));
+        LocalDateTime s = reference.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
         LocalDateTime e = s.plusMonths(1);
         return repository.findByEmpIdAndCheckInBetween(empId, s, e)
                 .stream().map(this::mapToResponseDTO).toList();
@@ -222,7 +216,7 @@ public class EmployeeAttendanceServiceImpl implements EmployeeAttendanceService 
 
     @Override
     public List<EmployeeAttendanceResponseDTO> getByEmpIdThreeMonths(String empId, LocalDateTime reference) {
-        LocalDateTime s = toIST(reference.minusMonths(2).withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0));
+        LocalDateTime s = reference.minusMonths(2).withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
         LocalDateTime e = s.plusMonths(3);
         return repository.findByEmpIdAndCheckInBetween(empId, s, e)
                 .stream().map(this::mapToResponseDTO).toList();
@@ -230,7 +224,7 @@ public class EmployeeAttendanceServiceImpl implements EmployeeAttendanceService 
 
     @Override
     public List<EmployeeAttendanceResponseDTO> getByEmpIdSixMonths(String empId, LocalDateTime reference) {
-        LocalDateTime s = toIST(reference.minusMonths(5).withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0));
+        LocalDateTime s = reference.minusMonths(5).withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
         LocalDateTime e = s.plusMonths(6);
         return repository.findByEmpIdAndCheckInBetween(empId, s, e)
                 .stream().map(this::mapToResponseDTO).toList();
@@ -246,8 +240,8 @@ public class EmployeeAttendanceServiceImpl implements EmployeeAttendanceService 
         dto.setAbsent(ea.getAbsent());
         dto.setAttendanceRate(ea.getAttendanceRate() != null ? String.format("%.2f%%", ea.getAttendanceRate()) : null);
         dto.setAvgHours(ea.getAvgHours() != null ? String.format("%.2f", ea.getAvgHours()) : null);
-        dto.setCheckIn(formatLocalDateTime(ea.getCheckIn()));   // <-- FIX
-        dto.setCheckOut(formatLocalDateTime(ea.getCheckOut())); // <-- FIX
+        dto.setCheckIn(formatLocalDateTime(ea.getCheckIn()));
+        dto.setCheckOut(formatLocalDateTime(ea.getCheckOut()));
         dto.setActuallyWorkingHours(minutesToHourMinFormat(ea.getActuallyWorkingHoursMins()));
         dto.setWorking(minutesToHourMinFormat(ea.getWorkingMins()));
         dto.setShortTime(minutesToHourMinFormat(ea.getShortTimeMins()));
@@ -259,7 +253,7 @@ public class EmployeeAttendanceServiceImpl implements EmployeeAttendanceService 
 
     private String formatLocalDateTime(LocalDateTime dateTime) {
         if (dateTime == null) return null;
-        return dateTime.toString(); // or .format(...) for your preferred string format
+        return dateTime.toString();
     }
 
 }

@@ -7,15 +7,12 @@ import com.pulse.fineflux.domain.SalesUpdateDTO;
 import com.pulse.fineflux.entity.*;
 import com.pulse.fineflux.repository.*;
 import com.pulse.fineflux.utill.SaleMatch;
-import com.pulse.fineflux.utill.DateTimeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -34,24 +31,13 @@ public class SalesServiceImpl implements SalesService {
     private final FinanceSummaryService financeSummaryService;
     private final SaleHistoryRepository saleHistoryRepository;
     private final CollectionsRepository collectionsRepository;
-
-    // Helper: convert client LocalDateTime (in system default zone) to IST LocalDateTime truncated to seconds
-    private LocalDateTime toIst(LocalDateTime clientTs) {
-        ZoneId sourceZone = ZoneId.systemDefault();
-        return DateTimeUtil.toIst(clientTs, sourceZone).truncatedTo(ChronoUnit.SECONDS);
-    }
-
-    // Helper: current IST truncated to seconds
-    private LocalDateTime nowIst() {
-        return DateTimeUtil.nowLocal();
-    }
+    private final DateTimeService dateTimeService;
 
     @Override
     public SalesResponseDTO createSale(SalesCreateDTO dto) {
         try {
-            // If client provided a timestamp, convert it from system default zone to IST;
-            // otherwise use current IST
-            LocalDateTime istSecond = dto.getDateTime() != null ? toIst(dto.getDateTime()) : nowIst();
+            // Use the provided dateTime or current IST time
+            LocalDateTime dateTime = dto.getDateTime() != null ? dto.getDateTime() : dateTimeService.nowLocal();
 
             Product product = productRepository.findByOrganizationId(dto.getOrganizationId())
                     .stream()
@@ -90,12 +76,12 @@ public class SalesServiceImpl implements SalesService {
             String gunsNorm = SaleMatch.normalize(gunsDisplay);
 
             String saleId = java.util.UUID.randomUUID().toString();
-            String saleMatchKey = SaleMatch.buildKey(istSecond, productNorm, gunsNorm, dto.getPrice());
+            String saleMatchKey = SaleMatch.buildKey(dateTime, productNorm, gunsNorm, dto.getPrice());
 
             Sales sale = Sales.builder()
                     .saleId(saleId)
                     .organizationId(dto.getOrganizationId())
-                    .dateTime(istSecond) // store IST
+                    .dateTime(dateTime) // store IST
                     .productName(productNorm)
                     .guns(gunsNorm)
                     .price(dto.getPrice())
@@ -146,7 +132,7 @@ public class SalesServiceImpl implements SalesService {
                         inventory.setStockValue(updatedStockValue);
                         inventoryRepository.save(inventory);
 
-                        LocalDateTime istLogTime = nowIst();
+                        LocalDateTime istLogTime = dateTimeService.nowLocal();
 
                         InventoryLog logEntry = InventoryLog.builder()
                                 .inventoryId(inventory.getInventoryId())
@@ -155,7 +141,7 @@ public class SalesServiceImpl implements SalesService {
                                 .productName(inventory.getProductName())
                                 .totalCapacity(inventory.getTotalCapacity())
                                 .stockValue(updatedStockValue)
-                                .lastUpdated(istLogTime) // store IST
+                                .lastUpdated(istLogTime)
                                 .empId(dto.getEmpId())
                                 .currentLevel(updatedInv)
                                 .metric(inventory.getMetric())
@@ -282,14 +268,14 @@ public class SalesServiceImpl implements SalesService {
             }
             log.info("Deleted {} collection(s) for orgId={} saleId={}", deletedCount, orgId, saleId);
 
-            // Always create a NEW SaleHistory audit entry for this delete and store IST
-            LocalDateTime istDeleteTime = nowIst();
+            // Always create a NEW SaleHistory audit entry for this delete
+            LocalDateTime now = dateTimeService.nowLocal();
 
             SaleHistory deletedRecord = new SaleHistory();
-            deletedRecord.setId(null); // ensure insertion as a new doc
+            deletedRecord.setId(null);
             deletedRecord.setSaleId(saleId);
             deletedRecord.setOrganizationId(orgId);
-            deletedRecord.setDateTime(istDeleteTime); // store IST
+            deletedRecord.setDateTime(now);
             deletedRecord.setProductName(productName);
             deletedRecord.setGuns(guns);
             deletedRecord.setEmpId(employeeId);
@@ -300,8 +286,7 @@ public class SalesServiceImpl implements SalesService {
             deletedRecord.setPrice(sale.getPrice());
             deletedRecord.setSalesInRupees(sale.getSalesInRupees());
             deletedRecord.setMutationby("sale_delete");
-            deletedRecord.setLastUpdated(nowIst()); // store IST
-            // use insert to force new doc creation
+            deletedRecord.setLastUpdated(now);
             saleHistoryRepository.insert(deletedRecord);
             log.info("Inserted SaleHistory delete audit for saleId={}, mongoId={}", saleId, saleMongoId);
 
@@ -349,19 +334,17 @@ public class SalesServiceImpl implements SalesService {
                 targetInv.setStockValue(price.multiply(targetInv.getCurrentLevel()));
                 inventoryRepository.save(targetInv);
 
-                // Create a NEW InventoryLog entry for the target inventory after rollback (store IST)
-                LocalDateTime istDeleteTimeLog = nowIst();
-
+                // Create a NEW InventoryLog entry for the target inventory after rollback
                 InventoryLog deleteLog = InventoryLog.builder()
-                        .id(null) // ensure new document
+                        .id(null)
                         .inventoryId(targetInv.getInventoryId())
                         .organizationId(targetInv.getOrganizationId())
                         .productId(targetInv.getProductId())
                         .productName(targetInv.getProductName())
-                        .lastUpdated(istDeleteTimeLog) // store IST
+                        .lastUpdated(dateTimeService.nowLocal())
                         .empId(employeeId)
-                        .currentLevel(targetInv.getCurrentLevel())   // updated level (after addBack)
-                        .stockValue(targetInv.getStockValue())       // updated stockValue
+                        .currentLevel(targetInv.getCurrentLevel())
+                        .stockValue(targetInv.getStockValue())
                         .metric(targetInv.getMetric())
                         .status(targetInv.getStatus())
                         .tankCapacity(targetInv.getTankCapacity())
@@ -370,11 +353,6 @@ public class SalesServiceImpl implements SalesService {
 
                 inventoryLogRepository.insert(deleteLog);
                 log.info("Inserted inventory delete log for product={} inventoryId={}", productName, targetInv.getInventoryId());
-
-                // Previously we reconciled ALL remaining inventories here which created multiple logs and
-                // caused incorrect 'sale_delete - reconciled' entries in the DB. Remove that behaviour.
-
-                // End of target inventory rollback handling
             }
 
             // Finally delete the sale

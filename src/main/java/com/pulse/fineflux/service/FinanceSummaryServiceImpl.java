@@ -14,8 +14,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -32,6 +30,7 @@ public class FinanceSummaryServiceImpl implements FinanceSummaryService {
     private final ProductRepository productRepository;
     private final ExpenseRepository expenseRepo;
     private final SalesRepository salesRepo;
+    private final DateTimeService dateTimeService;
 
     @Override
     public FinanceSummaryResponseDTO update(String id, FinanceSummaryUpdateDTO dto) {
@@ -58,24 +57,17 @@ public class FinanceSummaryServiceImpl implements FinanceSummaryService {
     public FinanceSummaryResponseDTO autoCreateFinanceSummary(String orgId) {
         if (orgId == null) throw new IllegalArgumentException("orgId cannot be null");
 
-        ZoneId IST = ZoneId.of("Asia/Kolkata");
-        LocalDate today = LocalDate.now(IST);
-
-        LocalDateTime istStart = today.atStartOfDay();
-        LocalDateTime istEnd = istStart.plusDays(1);
-
-        // Convert to UTC for querying
-        LocalDateTime utcStart = istStart.atZone(IST).withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime();
-        LocalDateTime utcEnd = istEnd.atZone(IST).withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime();
+        LocalDate today = LocalDate.now(DateTimeService.IST);
+        LocalDateTime startOfDay = today.atStartOfDay();
+        LocalDateTime endOfDay = startOfDay.plusDays(1);
 
         Optional<FinanceSummary> existingOpt = financeRepo
-                .findTopByOrganizationIdAndCreatedAtBetweenOrderByCreatedAtDesc(orgId, utcStart, utcEnd);
+                .findTopByOrganizationIdAndCreatedAtBetweenOrderByCreatedAtDesc(orgId, startOfDay, endOfDay);
 
         FinanceSummary summary = existingOpt.orElseGet(FinanceSummary::new);
-
         boolean isNew = summary.getId() == null;
 
-        // Fetch all sales for the org and filter by IST local date to ensure deletes/rollbacks are reflected
+        // Fetch all sales for the org and filter by local date
         double salesRevenue = fmt(salesRepo.findByOrganizationId(orgId).stream()
                 .filter(s -> s.getDateTime() != null && s.getDateTime().toLocalDate().equals(today))
                 .mapToDouble(Sales::getSalesInRupees).sum());
@@ -86,18 +78,21 @@ public class FinanceSummaryServiceImpl implements FinanceSummaryService {
         double cngInventory = fmt(getInventoryValue(orgId, "CNG"));
         double twoTInventory = fmt(getInventoryValue(orgId, "2T"));
 
-        // Fetch all collections for the org and filter by IST local date
+        // Fetch all collections for the org and filter by local date
         List<Collections> collections = collectionsRepository.findByOrganizationId(orgId).stream()
                 .filter(c -> c.getDateTime() != null && c.getDateTime().toLocalDate().equals(today))
                 .collect(Collectors.toList());
 
         double cashReceived = fmt(collections.stream().mapToDouble(Collections::getCashReceived).sum());
-        double phonePay     = fmt(collections.stream().mapToDouble(Collections::getPhonePay).sum());
-        double creditCard   = fmt(collections.stream().mapToDouble(Collections::getCreditCard).sum());
+        double phonePay = fmt(collections.stream().mapToDouble(Collections::getPhonePay).sum());
+        double creditCard = fmt(collections.stream().mapToDouble(Collections::getCreditCard).sum());
 
-        // 3) Today expenses
+        // Today expenses
         List<Expense> expenses = expenseRepo.findByOrganizationId(orgId);
-        double totalExpenses = fmt( expenses.stream() .filter(e -> e.getExpenseDate() != null && e.getExpenseDate().equals(today)) .mapToDouble(Expense::getAmount) .sum() );
+        double totalExpenses = fmt(expenses.stream()
+                .filter(e -> e.getExpenseDate() != null && e.getExpenseDate().equals(today))
+                .mapToDouble(Expense::getAmount)
+                .sum());
 
         double totalRevenue = fmt(salesRevenue + petrolInventory + dieselInventory +
                 premiumPetrolInventory + cngInventory + twoTInventory);
@@ -106,7 +101,7 @@ public class FinanceSummaryServiceImpl implements FinanceSummaryService {
 
         // Update fields
         summary.setOrganizationId(orgId);
-        if (isNew) summary.setCreatedAt(LocalDateTime.now()); // only set if new
+        if (isNew) summary.setCreatedAt(dateTimeService.nowLocal());
         summary.setCashReceived(cashReceived);
         summary.setPhonePay(phonePay);
         summary.setCreditCard(creditCard);
@@ -162,9 +157,7 @@ public class FinanceSummaryServiceImpl implements FinanceSummaryService {
         return FinanceSummaryResponseDTO.builder()
                 .id(e.getId())
                 .organizationId(e.getOrganizationId())
-                .createdAt(e.getCreatedAt().atZone(ZoneId.of("UTC"))
-                        .withZoneSameInstant(ZoneId.of("Asia/Kolkata"))
-                        .toLocalDateTime())
+                .createdAt(e.getCreatedAt())
                 .cashReceived(fmt(e.getCashReceived()))
                 .phonePay(fmt(e.getPhonePay()))
                 .creditCard(fmt(e.getCreditCard()))

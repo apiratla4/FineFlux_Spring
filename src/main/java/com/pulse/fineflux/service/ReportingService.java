@@ -138,14 +138,14 @@ public class ReportingService {
     private ReportResponse<Employee> getEmployeeReport(ReportRequest req) {
         Instant start, end;
         if ("DAY".equalsIgnoreCase(req.getReportType())) {
-            start = req.getDay().atStartOfDay().atZone(ZoneId.systemDefault()).toInstant();
-            end = req.getDay().atTime(LocalTime.MAX).atZone(ZoneId.systemDefault()).toInstant();
+            start = req.getDay().atStartOfDay().toInstant(ZoneOffset.UTC);
+            end = req.getDay().atTime(LocalTime.MAX).toInstant(ZoneOffset.UTC);
         } else if ("MONTH".equalsIgnoreCase(req.getReportType())) {
-            start = LocalDate.of(req.getYear(), req.getMonth(), 1).atStartOfDay().atZone(ZoneId.systemDefault()).toInstant();
-            end = start.atZone(ZoneId.systemDefault()).plusMonths(1).minusNanos(1).toInstant();
+            start = LocalDate.of(req.getYear(), req.getMonth(), 1).atStartOfDay().toInstant(ZoneOffset.UTC);
+            end = LocalDate.of(req.getYear(), req.getMonth(), 1).plusMonths(1).atStartOfDay().minusNanos(1).toInstant(ZoneOffset.UTC);
         } else {
-            start = req.getFrom().atZone(ZoneId.systemDefault()).toInstant();
-            end = req.getTo().atZone(ZoneId.systemDefault()).toInstant();
+            start = req.getFrom().toInstant(ZoneOffset.UTC);
+            end = req.getTo().toInstant(ZoneOffset.UTC);
         }
         List<Employee> data = employeeRepo.findAllByJoinedDateBetweenAndOrganizationId(start, end, req.getOrganizationId());
         long activeCount = data.stream().filter(emp -> "ACTIVE".equalsIgnoreCase(emp.getStatus())).count();

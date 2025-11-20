@@ -5,14 +5,11 @@ import com.pulse.fineflux.domain.EmployeeDutyCreateDTO;
 import com.pulse.fineflux.domain.EmployeeDutyResponseDTO;
 import com.pulse.fineflux.domain.EmployeeDutyUpdateDTO;
 import com.pulse.fineflux.repository.EmployeeDutyRepository;
-import com.pulse.fineflux.service.EmployeeDutyService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.util.Date;
-import com.pulse.fineflux.utill.DateTimeUtil;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -22,6 +19,9 @@ public class EmployeeDutyServiceImpl implements EmployeeDutyService {
 
     @Autowired
     private EmployeeDutyRepository dutyRepository;
+
+    @Autowired
+    private DateTimeService dateTimeService;
 
     @Override
     public EmployeeDutyResponseDTO createDuty(EmployeeDutyCreateDTO createDTO) {
@@ -40,8 +40,8 @@ public class EmployeeDutyServiceImpl implements EmployeeDutyService {
         BeanUtils.copyProperties(createDTO, duty);
 
         duty.setStatus(createDTO.getStatus() != null ? createDTO.getStatus() : "SCHEDULED");
-        duty.setCreatedAt(DateTimeUtil.nowDate());
-        duty.setUpdatedAt(DateTimeUtil.nowDate());
+        duty.setCreatedAt(dateTimeService.nowLocal());
+        duty.setUpdatedAt(dateTimeService.nowLocal());
         duty.calculateTotalHours();
 
         EmployeeDuty savedDuty = dutyRepository.save(duty);
@@ -72,7 +72,7 @@ public class EmployeeDutyServiceImpl implements EmployeeDutyService {
             duty.setStatus(updateDTO.getStatus());
         }
 
-        duty.setUpdatedAt(DateTimeUtil.nowDate());
+        duty.setUpdatedAt(dateTimeService.nowLocal());
         duty.calculateTotalHours();
 
         EmployeeDuty updatedDuty = dutyRepository.save(duty);
@@ -124,7 +124,8 @@ public class EmployeeDutyServiceImpl implements EmployeeDutyService {
 
     @Override
     public List<EmployeeDutyResponseDTO> getDutiesByEmployeeAndDateRange(String empId, LocalDate startDate, LocalDate endDate) {
-        return dutyRepository.findByEmpIdAndDutyDateBetween(empId, startDate, endDate).stream()
+        return dutyRepository.findByEmpId(empId).stream()
+                .filter(d -> d.getDutyDate() != null && !d.getDutyDate().isBefore(startDate) && !d.getDutyDate().isAfter(endDate))
                 .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
     }

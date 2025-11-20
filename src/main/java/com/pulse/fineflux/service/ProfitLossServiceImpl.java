@@ -13,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -26,7 +25,7 @@ public class ProfitLossServiceImpl implements ProfitLossService {
     private final InventoryLogRepository inventoryLogRepository;
     private final ProductRepository productRepository;
     private final ProfitLossRepository profitLossRepository;
-   // private final ExpenseService expenseService;
+    private final DateTimeService dateTimeService;
 
     /**
      * Calculate Profit/Loss and save into MongoDB
@@ -43,13 +42,6 @@ public class ProfitLossServiceImpl implements ProfitLossService {
 
             log.debug("Total Cash Received: {}", cashReceived);
 
-            // 2️⃣ Total Expenses
-           /* double totalExpenses = expenseService.calculateTotalExpenses(orgId)
-                    .setScale(2, RoundingMode.HALF_UP)
-                    .doubleValue();
-
-            log.debug("Total Expenses: {}", totalExpenses);
-*/
             // 3️⃣ Inventory Value
             double inventoryValue = productRepository.findByOrganizationId(orgId)
                     .stream()
@@ -72,9 +64,10 @@ public class ProfitLossServiceImpl implements ProfitLossService {
 
             log.debug("Inventory Value: {}", inventoryValue);
 
-           double totalExpenses=3000;
+            double totalExpenses = 3000;
+
             // 4️⃣ Profit/Loss
-            double profitLoss = BigDecimal.valueOf(cashReceived + inventoryValue- totalExpenses ) //
+            double profitLoss = BigDecimal.valueOf(cashReceived + inventoryValue - totalExpenses)
                     .setScale(2, RoundingMode.HALF_UP)
                     .doubleValue();
 
@@ -84,7 +77,7 @@ public class ProfitLossServiceImpl implements ProfitLossService {
                     .inventoryValue(inventoryValue)
                     .totalExpenses(totalExpenses)
                     .profitLoss(profitLoss)
-                    .calculatedAt(LocalDateTime.now())
+                    .calculatedAt(dateTimeService.nowLocal())
                     .build();
 
             ProfitLoss saved = profitLossRepository.save(pl);

@@ -15,6 +15,7 @@ import java.util.List;
 public class EmployeeNewTaskServiceImpl implements EmployeeNewTaskService {
     private final EmployeeNewTaskRepository taskRepo;
     private final EmployeeRepository employeeRepo;
+    private final DateTimeService dateTimeService;
 
     @Override
     public EmployeeNewTask createTask(EmployeeNewTask task) {
@@ -25,7 +26,7 @@ public class EmployeeNewTaskServiceImpl implements EmployeeNewTaskService {
         }
         task.setAssignedToName(emp.getFirstName() + " " + emp.getLastName());
         task.setStatus("pending");
-        if (task.getDueDate() == null) task.setDueDate(LocalDate.now().plusDays(1));
+        if (task.getDueDate() == null) task.setDueDate(LocalDate.now(DateTimeService.IST).plusDays(1));
         return taskRepo.save(task);
     }
 

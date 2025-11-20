@@ -7,10 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import com.pulse.fineflux.utill.DateTimeUtil;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -30,7 +27,6 @@ public class SaleHistoryServiceImpl implements SaleHistoryService {
                 .collect(Collectors.toList());
     }
 
-
     @Override
     public List<SaleHistoryResponseDTO> getByDateRange(String orgId, LocalDateTime from, LocalDateTime to) {
         log.info("Fetching SaleHistory by date range for orgId={}, from={}, to={} in DESC order", orgId, from, to);
@@ -40,17 +36,12 @@ public class SaleHistoryServiceImpl implements SaleHistoryService {
                 .collect(Collectors.toList());
     }
 
-
     private SaleHistoryResponseDTO toResponse(SaleHistory h) {
-        // Stored dateTime is IST local time. Render as IST and ISO with +05:30
-        LocalDateTime istStored = h.getDateTime();
-        ZonedDateTime istZdt = istStored != null ? istStored.atZone(DateTimeUtil.IST) : null;
-
         return SaleHistoryResponseDTO.builder()
                 .id(h.getId())
                 .organizationId(h.getOrganizationId())
-                .dateTime(istStored) // IST local date-time for UI
-                .dateTimeString(istZdt != null ? istZdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) : null) // ISO with +05:30
+                .dateTime(h.getDateTime())
+                .dateTimeString(h.getDateTime() != null ? h.getDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : null)
                 .productName(h.getProductName())
                 .guns(h.getGuns())
                 .empId(h.getEmpId())
@@ -67,6 +58,4 @@ public class SaleHistoryServiceImpl implements SaleHistoryService {
                 .receivedTotal(h.getReceivedTotal())
                 .build();
     }
-
-
 }

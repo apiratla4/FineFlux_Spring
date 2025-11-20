@@ -77,7 +77,7 @@ public class CustomerHistoryServiceImpl implements CustomerHistoryService {
                 cust.setTotalBorrowedAmount(currentTotalBorrowed);
             }
 
-            LocalDate today = LocalDate.now();
+            LocalDate today = LocalDate.now(com.pulse.fineflux.utill.DateTimeUtil.IST);
             if (cust.getDueDate() != null && cust.getDueDate().isBefore(today) && newDebt.signum() > 0) {
                 cust.setStatus(Customer.BorrowStatus.OVERDUE);
             } else if (newDebt.signum() == 0) {

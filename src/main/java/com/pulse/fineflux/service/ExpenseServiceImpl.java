@@ -11,8 +11,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import com.pulse.fineflux.utill.DateTimeUtil;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -23,6 +23,8 @@ public class ExpenseServiceImpl implements ExpenseService {
     private final ExpenseCategoryRepository catRepo;
     private final FinanceSummaryService financeSummaryService;
     private final EmployeeRepository employeeRepo;
+    private final DateTimeService dateTimeService;
+
     @Override
     public ExpenseResponseDTO create(ExpenseCreateDTO dto) {
         try {
@@ -33,7 +35,7 @@ public class ExpenseServiceImpl implements ExpenseService {
                     .amount(dto.getAmount())
                     .categoryName(dto.getCategoryName())
                     .expenseDate(dto.getExpenseDate())
-                    .createdAt(DateTimeUtil.nowLocal())
+                    .createdAt(dateTimeService.nowLocal())
                     .organizationId(dto.getOrganizationId())
                     .empId(dto.getEmpId())
                     .employeeName(dto.getEmployeeName())

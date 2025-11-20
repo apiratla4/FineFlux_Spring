@@ -11,7 +11,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.Date;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter
@@ -32,8 +32,8 @@ public class EmployeeDuty {
     private String shiftEnd;
     private Double totalHours;
     private String status; // SCHEDULED, ACTIVE, COMPLETED, CANCELLED
-    private Date createdAt;
-    private Date updatedAt;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
     // Calculate total hours based on shift times
     public void calculateTotalHours() {
