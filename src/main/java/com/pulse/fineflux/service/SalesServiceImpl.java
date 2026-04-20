@@ -36,7 +36,8 @@ public class SalesServiceImpl implements SalesService {
     @Override
     public SalesResponseDTO createSale(SalesCreateDTO dto) {
         try {
-            // Use the provided dateTime or current IST time
+            // Use the provided dateTime from payload or default to current IST time if not provided
+            // This allows manual date/time selection instead of auto-updating
             LocalDateTime dateTime = dto.getDateTime() != null ? dto.getDateTime() : dateTimeService.nowLocal();
 
             Product product = productRepository.findByOrganizationId(dto.getOrganizationId())
